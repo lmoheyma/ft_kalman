@@ -1,7 +1,9 @@
 #include "../inc/Client.hpp"
+#include "../inc/Parser.hpp"
 
 int main() {
     Client client;
+    Parser parser;
     client.init();
 
     while (true) {
@@ -9,10 +11,18 @@ int main() {
         if (client.getBuffer().find("MSG_END") != std::string::npos)
             break;
     }
-
-    std::cout << "\n--- Messages reçus ---\n";
-    std::cout << client.getBuffer() << std::endl;
-
     close(client.getSockFd());
+    
+    std::map<std::string, std::vector<double> > parsed = parser.parseMessage(client.getBuffer());
+    std::map<std::string, std::vector<double> >::iterator it;
+
+    for (it = parsed.begin(); it != parsed.end(); ++it) {
+        std::cout << it->first << " : ";
+        std::vector<double>::iterator vit;
+        for (vit = it->second.begin(); vit != it->second.end(); ++vit) {
+            std::cout << *vit << " ";
+        }
+        std::cout << std::endl;
+    }
     return 0;
 }

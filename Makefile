@@ -3,7 +3,8 @@ CC = c++
 FLAGS = -Wall -Wextra -Werror -std=c++98 -g
 
 SRCS = src/main.cpp \
-		src/Client.cpp
+		src/Client.cpp \
+		src/Parser.cpp
 
 INCLUDE = -I inc/
 
