@@ -11,16 +11,20 @@
 
 #define PORT 4242
 #define MAXLINE 1024
+#define START_MSG "READY"
 
 class Client
 {
     private:
         int _sockfd;
-        char _buffer[MAXLINE]; 
-        const char *_start_msg;
-        struct sockaddr_in _servaddr; 
+        std::string _buffer[MAXLINE];
+        int _index;
+        struct sockaddr_in _servaddr;
     public :
         Client();
         ~Client();
-        int send();
+        std::string getBuffer(void) const;
+        int getSockFd(void) const;
+        void init(void);
+        void receive(void);
 };
