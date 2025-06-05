@@ -8,15 +8,22 @@
 #include <cctype>
 #include <cstdlib>
 
+enum Mesures {
+  ACCELERATION,
+  DIRECTION,
+  SPEED,
+  TRUE_POSITION
+};
+
 class Parser
 {
     private:
         std::string _message;
-        bool _hasMsgStarted;
+        // bool _hasMsgStarted;
         std::vector<double> _initialState;
     public:
         Parser();
         ~Parser();
+        std::vector<double> createInitialState(std::map<std::string, std::vector<double> > data);
         std::map<std::string, std::vector<double> > parseMessage(const std::string& message);
-        std::vector<double> getInitialState(void) const;
 };

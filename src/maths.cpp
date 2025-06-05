@@ -1,9 +1,31 @@
-#include <vector>
-#include <cstddef>
+#include "../inc/maths.hpp"
 
-using Matrix = std::vector<std::vector<double>>;
+Matrix setRotationX(Matrix& matrix, double phi)
+{
+    matrix[0][0] = 1; matrix[0][1] = 0;             matrix[0][2] = 0;
+    matrix[1][0] = 0; matrix[1][1] = std::cos(phi); matrix[1][2] = std::sin(phi);
+    matrix[2][0] = 0; matrix[2][1] = -std::sin(phi);matrix[2][2] = std::cos(phi);
+    return matrix;
+}
 
-Matrix multiply(const Matrix& A, const Matrix& B) {
+Matrix setRotationY(Matrix& matrix, double theta)
+{
+    matrix[0][0] = std::cos(theta);     matrix[0][1] = 0;   matrix[0][2] = -std::sin(theta);
+    matrix[1][0] = 0;                   matrix[1][1] = 1;   matrix[1][2] = 0;
+    matrix[2][0] = std::sin(theta);     matrix[2][1] = 0;   matrix[2][2] = std::cos(theta);
+    return matrix;
+}
+
+Matrix setRotationZ(Matrix& matrix, double psi)
+{
+    matrix[0][0] = std::cos(psi);   matrix[0][1] = std::sin(psi);   matrix[0][2] = 0;
+    matrix[1][0] = -std::sin(psi);  matrix[1][1] = std::cos(psi);   matrix[1][2] = 0;
+    matrix[2][0] = 0;               matrix[2][1] = 0;               matrix[2][2] = 1;
+    return matrix;
+}
+
+Matrix multiply(const Matrix& A, const Matrix& B)
+{
     size_t n = A.size();
     size_t m = B[0].size();
     size_t p = B.size();
@@ -18,4 +40,33 @@ Matrix multiply(const Matrix& A, const Matrix& B) {
         }
     }
     return result;
+}
+
+Vector multiplyMatrixVector(const Matrix& matrix, const Vector& vector) {
+    Vector result(vector.size(), 0.0);
+
+    for (size_t i = 0; i < vector.size(); ++i) {
+        for (size_t j = 0; j < vector.size(); ++j) {
+            result[i] += matrix[i][j] * vector[j];
+        }
+    }
+    return result;
+}
+
+void printMatrix(Matrix matrix)
+{
+    for (size_t i = 0; i < matrix.size(); i++) {
+        for (size_t j = 0; j < matrix[0].size(); j++) {
+            std::cout << matrix[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
+}
+
+void printVector(Vector vector)
+{
+    std::vector<double>::iterator vit;
+    for (vit = vector.begin(); vit != vector.end(); ++vit) {
+        std::cout << *vit << std::endl;
+    }
 }

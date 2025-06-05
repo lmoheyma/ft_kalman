@@ -24,5 +24,6 @@ int main() {
         }
         std::cout << std::endl;
     }
+    parser.createInitialState(parsed);
     return 0;
 }
