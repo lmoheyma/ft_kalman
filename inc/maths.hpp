@@ -13,5 +13,8 @@ Matrix setRotationY(Matrix& matrix, double theta);
 Matrix setRotationZ(Matrix& matrix, double psi);
 Matrix multiply(const Matrix& A, const Matrix& B);
 Vector multiplyMatrixVector(const Matrix& matrix, const Vector& vector);
+Matrix identityMatrix(size_t n);
+Matrix matrixScalar(Matrix matrix, const double scalar);
+Matrix mergeMatrixVertical(const Matrix m1, const Matrix m2);
 void printMatrix(Matrix matrix);
 void printVector(Vector vector);

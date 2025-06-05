@@ -32,9 +32,6 @@ std::vector<double> Parser::createInitialState(std::map<std::string, std::vector
         this->_initialState.insert(this->_initialState.begin(), position.begin(), position.end());
         for (auto i : speed)
             this->_initialState.push_back(i);
-        
-        printVector(this->_initialState);
-
         return this->_initialState;
     }
     catch(const std::out_of_range& e)

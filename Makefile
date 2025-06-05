@@ -6,6 +6,7 @@ SRCS = src/main.cpp \
 		src/maths.cpp \
 		src/Client.cpp \
 		src/Parser.cpp \
+		src/KalmanFilter.cpp
 
 INCLUDE = -I inc/
 

@@ -53,6 +53,39 @@ Vector multiplyMatrixVector(const Matrix& matrix, const Vector& vector) {
     return result;
 }
 
+Matrix identityMatrix(size_t n)
+{
+    Matrix result(n, std::vector<double>(n, 0.0));
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = 0; j < n; j++) {
+            if (i == j) result[i][j] = 1.0;
+        }
+    }
+    return result;
+}
+
+Matrix matrixScalar(Matrix matrix, const double scalar)
+{
+    for (size_t i = 0; i < matrix.size(); i++) {
+        for (size_t j = 0; j < matrix[0].size(); j++) {
+            matrix[i][j] *= scalar;
+        }
+    }
+    return matrix;
+}
+
+Matrix mergeMatrixVertical(const Matrix m1, const Matrix m2)
+{
+    Matrix mergedMatrix(m1.size(), std::vector<double>(m1.size()+m2.size(), 0.0));
+    for (size_t i = 0; i < m1.size(); i++) {
+        for (size_t j = 0; j < m1[0].size(); j++) {
+            mergedMatrix[i][j] = m1[i][j];
+            mergedMatrix[i + m1.size()][j] = m2[i][j];
+        }
+    }
+    return mergedMatrix;
+}
+
 void printMatrix(Matrix matrix)
 {
     for (size_t i = 0; i < matrix.size(); i++) {

@@ -1,5 +1,6 @@
 #include "../inc/Client.hpp"
 #include "../inc/Parser.hpp"
+#include "../inc/KalmanFilter.hpp"
 
 int main() {
     Client client;
@@ -24,6 +25,9 @@ int main() {
         }
         std::cout << std::endl;
     }
-    parser.createInitialState(parsed);
+    KalmanFilter kalmanFilter;
+    kalmanFilter.setStateVector(parser.createInitialState(parsed));
+    std::cout << "State Vector (0) : " << std::endl;
+    printVector(kalmanFilter.getStateVector());
     return 0;
 }
