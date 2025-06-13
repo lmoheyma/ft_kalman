@@ -29,5 +29,6 @@ int main() {
     kalmanFilter.setStateVector(parser.createInitialState(parsed));
     std::cout << "State Vector (0) : " << std::endl;
     printVector(kalmanFilter.getStateVector());
+    kalmanFilter.initProcessNoiseMatrix();
     return 0;
 }

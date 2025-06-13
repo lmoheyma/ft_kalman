@@ -76,7 +76,7 @@ Matrix matrixScalar(Matrix matrix, const double scalar)
 
 Matrix mergeMatrixVertical(const Matrix m1, const Matrix m2)
 {
-    Matrix mergedMatrix(m1.size(), std::vector<double>(m1.size()+m2.size(), 0.0));
+    Matrix mergedMatrix(m1.size()+m2.size(), std::vector<double>(m1.size(), 0.0));
     for (size_t i = 0; i < m1.size(); i++) {
         for (size_t j = 0; j < m1[0].size(); j++) {
             mergedMatrix[i][j] = m1[i][j];
@@ -84,6 +84,11 @@ Matrix mergeMatrixVertical(const Matrix m1, const Matrix m2)
         }
     }
     return mergedMatrix;
+}
+
+Matrix transpose(const Matrix matrix)
+{
+    return matrix;
 }
 
 void printMatrix(Matrix matrix)

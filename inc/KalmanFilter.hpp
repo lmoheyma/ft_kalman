@@ -6,6 +6,7 @@
 #define ACCELEROMETER_NOISE 1e-3
 #define GYROSCOPE_NOISE 1e-2
 #define GPS_NOISE 1e-1
+#define DELTA_T 0.01
 
 class KalmanFilter
 {
@@ -23,4 +24,5 @@ class KalmanFilter
         void setStateVector(Vector stateVector);
         void initUncertaintyMatrix(void);
         void initProcessNoiseMatrix(void);
+        Matrix propagationMatrix(void);
 };

@@ -23,12 +23,15 @@ void KalmanFilter::initUncertaintyMatrix(void)
     this->R = matrixScalar(this->I, GPS_NOISE * GPS_NOISE);
 }
 
+Matrix KalmanFilter::propagationMatrix(void)
+{
+    Matrix upG = matrixScalar(identityMatrix(3), (DELTA_T * DELTA_T) * 1/2);
+    Matrix lowG = matrixScalar(identityMatrix(3), DELTA_T);
+    return mergeMatrixVertical(upG, lowG);
+}
+
 void KalmanFilter::initProcessNoiseMatrix(void)
 {
-    double deltaT = 0.01;
-
-    Matrix upG = matrixScalar(identityMatrix(3), (1/2) * (deltaT * deltaT));
-    Matrix lowG = matrixScalar(identityMatrix(3), deltaT);
-    Matrix G = mergeMatrixVertical(upG, lowG);
-    printMatrix(G);
+    Matrix G = propagationMatrix();
+    
 }
