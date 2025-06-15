@@ -101,6 +101,29 @@ Matrix diagonalMatrix(const Vector& diagonal) {
     return mat;
 }
 
+Matrix addMatrix(const Matrix& A, const Matrix& B) {
+    size_t rows = A.size();
+    size_t cols = A[0].size();
+    Matrix result(rows, std::vector<double>(cols, 0.0));
+
+    for (size_t i = 0; i < rows; ++i)
+        for (size_t j = 0; j < cols; ++j)
+            result[i][j] = A[i][j] + B[i][j];
+
+    return result;
+}
+
+Vector addVectors(const Vector& a, const Vector& b) {
+    if (a.size() != b.size())
+        throw std::invalid_argument("Vectors must have the same size");
+
+    Vector result(a.size());
+    for (size_t i = 0; i < a.size(); ++i)
+        result[i] = a[i] + b[i];
+
+    return result;
+}
+
 void printMatrix(Matrix matrix) {
     for (size_t i = 0; i < matrix.size(); i++) {
         for (size_t j = 0; j < matrix[0].size(); j++) {

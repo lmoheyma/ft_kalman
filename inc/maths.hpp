@@ -18,5 +18,7 @@ Matrix matrixScalar(Matrix matrix, const double scalar);
 Matrix mergeMatrixVertical(const Matrix m1, const Matrix m2);
 Matrix transpose(const Matrix matrix);
 Matrix diagonalMatrix(const Vector& diagonal);
+Matrix addMatrix(const Matrix& A, const Matrix& B);
+Vector addVectors(const Vector& a, const Vector& b);
 void printMatrix(Matrix matrix);
 void printVector(Vector vector);
