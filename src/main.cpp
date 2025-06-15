@@ -30,5 +30,7 @@ int main() {
     std::cout << "State Vector (0) : " << std::endl;
     printVector(kalmanFilter.getStateVector());
     kalmanFilter.initProcessNoiseMatrix();
+    kalmanFilter.initCovarianceMatrix();
+    kalmanFilter.initMeasurementMatrix();
     return 0;
 }

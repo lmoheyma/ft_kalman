@@ -1,31 +1,27 @@
 #include "../inc/maths.hpp"
 
-Matrix setRotationX(Matrix& matrix, double phi)
-{
+Matrix setRotationX(Matrix& matrix, double phi) {
     matrix[0][0] = 1; matrix[0][1] = 0;             matrix[0][2] = 0;
     matrix[1][0] = 0; matrix[1][1] = std::cos(phi); matrix[1][2] = std::sin(phi);
     matrix[2][0] = 0; matrix[2][1] = -std::sin(phi);matrix[2][2] = std::cos(phi);
     return matrix;
 }
 
-Matrix setRotationY(Matrix& matrix, double theta)
-{
+Matrix setRotationY(Matrix& matrix, double theta) {
     matrix[0][0] = std::cos(theta);     matrix[0][1] = 0;   matrix[0][2] = -std::sin(theta);
     matrix[1][0] = 0;                   matrix[1][1] = 1;   matrix[1][2] = 0;
     matrix[2][0] = std::sin(theta);     matrix[2][1] = 0;   matrix[2][2] = std::cos(theta);
     return matrix;
 }
 
-Matrix setRotationZ(Matrix& matrix, double psi)
-{
+Matrix setRotationZ(Matrix& matrix, double psi) {
     matrix[0][0] = std::cos(psi);   matrix[0][1] = std::sin(psi);   matrix[0][2] = 0;
     matrix[1][0] = -std::sin(psi);  matrix[1][1] = std::cos(psi);   matrix[1][2] = 0;
     matrix[2][0] = 0;               matrix[2][1] = 0;               matrix[2][2] = 1;
     return matrix;
 }
 
-Matrix multiply(const Matrix& A, const Matrix& B)
-{
+Matrix multiply(const Matrix& A, const Matrix& B) {
     size_t n = A.size();
     size_t m = B[0].size();
     size_t p = B.size();
@@ -53,8 +49,7 @@ Vector multiplyMatrixVector(const Matrix& matrix, const Vector& vector) {
     return result;
 }
 
-Matrix identityMatrix(size_t n)
-{
+Matrix identityMatrix(size_t n) {
     Matrix result(n, std::vector<double>(n, 0.0));
     for (size_t i = 0; i < n; i++) {
         for (size_t j = 0; j < n; j++) {
@@ -64,8 +59,7 @@ Matrix identityMatrix(size_t n)
     return result;
 }
 
-Matrix matrixScalar(Matrix matrix, const double scalar)
-{
+Matrix matrixScalar(Matrix matrix, const double scalar) {
     for (size_t i = 0; i < matrix.size(); i++) {
         for (size_t j = 0; j < matrix[0].size(); j++) {
             matrix[i][j] *= scalar;
@@ -74,9 +68,9 @@ Matrix matrixScalar(Matrix matrix, const double scalar)
     return matrix;
 }
 
-Matrix mergeMatrixVertical(const Matrix m1, const Matrix m2)
-{
+Matrix mergeMatrixVertical(const Matrix m1, const Matrix m2) {
     Matrix mergedMatrix(m1.size()+m2.size(), std::vector<double>(m1.size(), 0.0));
+
     for (size_t i = 0; i < m1.size(); i++) {
         for (size_t j = 0; j < m1[0].size(); j++) {
             mergedMatrix[i][j] = m1[i][j];
@@ -86,13 +80,28 @@ Matrix mergeMatrixVertical(const Matrix m1, const Matrix m2)
     return mergedMatrix;
 }
 
-Matrix transpose(const Matrix matrix)
-{
-    return matrix;
+Matrix transpose(const Matrix matrix) {
+    Matrix transposedMatrix(matrix[0].size(), std::vector<double>(matrix.size(), 0.0));
+
+    for (size_t i = 0; i < matrix.size(); i++) {
+        for (size_t j = 0; j < matrix[0].size(); j++) {
+            transposedMatrix[j][i] = matrix[i][j];
+        }
+    }
+    return transposedMatrix;
 }
 
-void printMatrix(Matrix matrix)
-{
+Matrix diagonalMatrix(const Vector& diagonal) {
+    size_t n = diagonal.size();
+    Matrix mat(n, Vector(n, 0.0));
+
+    for (size_t i = 0; i < n; ++i)
+        mat[i][i] = diagonal[i];
+
+    return mat;
+}
+
+void printMatrix(Matrix matrix) {
     for (size_t i = 0; i < matrix.size(); i++) {
         for (size_t j = 0; j < matrix[0].size(); j++) {
             std::cout << matrix[i][j] << " ";
@@ -101,8 +110,7 @@ void printMatrix(Matrix matrix)
     }
 }
 
-void printVector(Vector vector)
-{
+void printVector(Vector vector) {
     std::vector<double>::iterator vit;
     for (vit = vector.begin(); vit != vector.end(); ++vit) {
         std::cout << *vit << std::endl;

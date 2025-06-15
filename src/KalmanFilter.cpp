@@ -18,6 +18,21 @@ void KalmanFilter::setStateVector(Vector stateVector)
     this->_stateVector = stateVector;
 }
 
+void KalmanFilter::initCovarianceMatrix(void)
+{
+    Vector diagonal = {0.01, 0.01, 0.01, 0.5, 0.5, 0.5};
+    this->P = diagonalMatrix(diagonal);
+    
+    std::cout << "P : " << std::endl;
+    printMatrix(this->P);
+}
+
+void KalmanFilter::initMeasurementMatrix(void)
+{
+    this->H = mergeMatrixVertical(identityMatrix(3), Matrix(3, std::vector<double>(3, 0.0)));
+    this->H = transpose(this->H);
+}
+
 void KalmanFilter::initUncertaintyMatrix(void)
 {
     this->R = matrixScalar(this->I, GPS_NOISE * GPS_NOISE);
@@ -33,5 +48,8 @@ Matrix KalmanFilter::propagationMatrix(void)
 void KalmanFilter::initProcessNoiseMatrix(void)
 {
     Matrix G = propagationMatrix();
-    
+    Matrix GTransposed = transpose(G);
+ 
+    this->Q = multiply(G, GTransposed);
+    this->Q = matrixScalar(this->Q, ACCELEROMETER_NOISE * ACCELEROMETER_NOISE);
 }

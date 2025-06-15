@@ -17,11 +17,14 @@ class KalmanFilter
         Matrix Q;
         Matrix R;
         Matrix G;
+        Matrix H;
     public:
         KalmanFilter();
         ~KalmanFilter();
         Vector getStateVector(void) const;
         void setStateVector(Vector stateVector);
+        void initCovarianceMatrix();
+        void initMeasurementMatrix(void);
         void initUncertaintyMatrix(void);
         void initProcessNoiseMatrix(void);
         Matrix propagationMatrix(void);

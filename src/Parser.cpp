@@ -20,6 +20,8 @@ std::vector<double> Parser::createInitialState(std::map<std::string, std::vector
         Matrix Rx(3, std::vector<double>(3, 0.0));
         Matrix Ry(3, std::vector<double>(3, 0.0));
         Matrix Rz(3, std::vector<double>(3, 0.0));
+
+        speed[0] /= 3.6; // convert km/h to m/s
         for (int i = 0; i < 2; i++) speed.push_back(0.0);
 
         setRotationX(Rx, direction[0]);
