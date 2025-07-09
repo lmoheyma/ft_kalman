@@ -8,6 +8,11 @@ Client::~Client()
 {
 }
 
+void Client::setIndex(int index)
+{
+    this->_index = index;
+}
+
 std::string Client::getBuffer(void) const
 {
     std::string result;
@@ -39,14 +44,14 @@ void Client::init(void)
             sizeof(this->_servaddr));
 }
 
-void Client::receive(void)
+void Client::receive_first_message(void)
 {
     if (_index >= MAXLINE) {
         std::cerr << "buffer overflow" << std::endl;
         return;
     }
     
-    socklen_t len;
+    socklen_t len = sizeof(this->_servaddr);
     char tmp[MAXLINE] = {0};
 
     int n = recvfrom(this->_sockfd, tmp, MAXLINE - 1,  
@@ -62,4 +67,42 @@ void Client::receive(void)
         std::cout << "Reçu (" << _index << ") : " << this->_buffer[_index] << std::endl;
     }
     _index++;
+}
+
+void Client::receive(void)
+{
+    if (_index >= MAXLINE) {
+        std::cerr << "buffer overflow" << std::endl;
+        return;
+    }
+    
+    socklen_t len = sizeof(this->_servaddr);
+    char tmp[MAXLINE] = {0};
+
+    int n = recvfrom(this->_sockfd, tmp, MAXLINE - 1,  
+                MSG_WAITALL, (struct sockaddr *) &this->_servaddr, 
+                &len);
+    if (n < 0) {
+        perror("recvfrom failed");
+        return;
+    }
+    tmp[n] = '\0';
+    if (_index > 1) { // Skip MSG_START
+        this->_buffer[_index] = std::string(tmp);
+        std::cout << "Reçu (" << _index << ") : " << this->_buffer[_index] << std::endl;
+    }
+    _index++;
+}
+
+void Client::sendEstimation(const std::vector<double>& estimation) {
+    if (estimation.size() < 3) {
+        std::cerr << "Estimation invalide (taille < 3)" << std::endl;
+        return;
+    }
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "%.15f %.15f %.15f", estimation[0], estimation[1], estimation[2]);
+    sendto(this->_sockfd, (const char *)buffer, strlen(buffer), 
+        MSG_CONFIRM, (const struct sockaddr *) &this->_servaddr,  
+            sizeof(this->_servaddr));
+    std::cout << "Estimation envoyée : " << buffer << std::endl;
 }

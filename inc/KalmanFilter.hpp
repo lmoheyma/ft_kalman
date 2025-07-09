@@ -32,7 +32,7 @@ class KalmanFilter
         void setAcceleration(Vector acc);
         // Prediction, Update
         void predictStateVector(void);
-        void update(void);
+        void update(const Vector& gps_measurement);
         // Matrix Initialization
         void initCovarianceMatrix();
         void initMeasurementMatrix(void);

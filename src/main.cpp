@@ -1,6 +1,8 @@
 #include "../inc/Client.hpp"
 #include "../inc/Parser.hpp"
 #include "../inc/KalmanFilter.hpp"
+#include <thread>
+#include <chrono>
 
 int main() {
     Client client;
@@ -8,44 +10,62 @@ int main() {
     client.init();
 
     while (true) {
-        client.receive();
-        if (client.getBuffer().find("MSG_END") != std::string::npos)
+        client.receive_first_message();
+        if (client.getBuffer().find("MSG_END") != std::string::npos) {
             break;
+        }
     }
-    close(client.getSockFd());
 
     std::map<std::string, std::vector<double> > parsed = parser.parseMessage(client.getBuffer());
-    std::map<std::string, std::vector<double> >::iterator it;
-
-    for (it = parsed.begin(); it != parsed.end(); ++it) {
-        std::cout << it->first << " : ";
-        std::vector<double>::iterator vit;
-        for (vit = it->second.begin(); vit != it->second.end(); ++vit) {
-            std::cout << *vit << " ";
-        }
-        std::cout << std::endl;
-    }
     KalmanFilter kalmanFilter;
     kalmanFilter.setAcceleration(parsed.at("ACCELERATION"));
     kalmanFilter.setStateVector(parser.createInitialState(parsed));
-    std::cout << "State Vector (0) : " << std::endl;
-    printVector(kalmanFilter.getStateVector());
     kalmanFilter.initProcessNoiseMatrix();
     kalmanFilter.initCovarianceMatrix();
     kalmanFilter.initMeasurementMatrix();
     kalmanFilter.initStateTransitionMatrix();
+    kalmanFilter.initControlMatrix();
+    // kalmanFilter.initObservationErrorCov();
+    std::cout << "Initial State : " << std::endl;
+    printVector(kalmanFilter.getStateVector());
 
-    /*
-    Prediction :
-    xk-1 = F * xk-1 + B
-    Pk-1 = F * Pk-1 * Ft + Q
+    std::vector<double> state = kalmanFilter.getStateVector();
+    std::vector<double> estimation = {state[0], state[1], state[2]};
+    std::cout << "Première estimation envoyée : " << std::endl;
+    printVector(estimation);
+    client.sendEstimation(estimation);
 
-    Update :
-    yk = zk − Hk-1
-​    Sk = H * Pk-1 Ht + R
-    Kk = Pk-1 * Ht * Sk
-    xk = xk-1 + Kk * yk
-    Pk = (I - Kk * H) * Pk-1
-    */
+    while (true) {
+        client.setIndex(0);
+        while (true) {
+            client.receive();
+            if (client.getBuffer().find("MSG_END") != std::string::npos) {
+                break;
+            }
+        }
+        std::string buffer = client.getBuffer();
+        std::cout << "Buffer : " << buffer << std::endl;
+
+        std::map<std::string, std::vector<double> > data = parser.parseMessage(buffer);
+
+        if (data.count("ACCELERATION"))
+            kalmanFilter.setAcceleration(data["ACCELERATION"]);
+
+        kalmanFilter.predictStateVector();
+
+        if (data.count("GPS")) {
+            kalmanFilter.update(data["GPS"]);
+        }
+
+        std::vector<double> state = kalmanFilter.getStateVector();
+        std::vector<double> estimation = {state[0], state[1], state[2]};
+        std::cout << "Estimation : " << std::endl;
+        printVector(estimation);
+        client.sendEstimation(estimation);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    close(client.getSockFd());
     return 0;
 }

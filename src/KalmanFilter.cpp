@@ -31,8 +31,39 @@ void KalmanFilter::predictStateVector(void) {
     }
 }
 
-void KalmanFilter::update(void) {
-    return;
+void KalmanFilter::update(const Vector& gps_measurement) {
+    // Innovation (erreur d'observation)
+    Vector Hx = multiplyMatrixVector(this->H, this->_stateVector); // H * x
+    Vector y(gps_measurement.size());
+    for (size_t i = 0; i < gps_measurement.size(); ++i)
+        y[i] = gps_measurement[i] - Hx[i];
+
+    // Matrice d'innovation S = HPH^T + R
+    Matrix HP = multiply(this->H, this->P);
+    Matrix HPHt = multiply(HP, transpose(this->H));
+    Matrix S = addMatrix(HPHt, this->R);
+
+    // Gain de Kalman K = PH^T S^-1
+    Matrix PHt = multiply(this->P, transpose(this->H));
+    Matrix S_inv = inverseMatrix(S);
+    Matrix K = multiply(PHt, S_inv);
+
+    // Mise à jour de l'état x = x + K * y
+    Vector Ky(K.size(), 0.0);
+    for (size_t i = 0; i < K.size(); ++i)
+        for (size_t j = 0; j < y.size(); ++j)
+            Ky[i] += K[i][j] * y[j];
+    for (size_t i = 0; i < this->_stateVector.size(); ++i)
+        this->_stateVector[i] += Ky[i];
+
+    // Mise à jour de la covariance P = (I - K*H) * P
+    Matrix KH = multiply(K, this->H);
+    Matrix I = identityMatrix(this->P.size());
+    Matrix I_KH = I;
+    for (size_t i = 0; i < I.size(); ++i)
+        for (size_t j = 0; j < I[0].size(); ++j)
+            I_KH[i][j] = I[i][j] - KH[i][j];
+    this->P = multiply(I_KH, this->P);
 }
 
 void KalmanFilter::initCovarianceMatrix(void) {

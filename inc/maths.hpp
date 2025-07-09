@@ -22,3 +22,4 @@ Matrix addMatrix(const Matrix& A, const Matrix& B);
 Vector addVectors(const Vector& a, const Vector& b);
 void printMatrix(Matrix matrix);
 void printVector(Vector vector);
+Matrix inverseMatrix(const Matrix& m);

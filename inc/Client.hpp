@@ -23,8 +23,11 @@ class Client
     public :
         Client();
         ~Client();
+        void setIndex(int index);
         std::string getBuffer(void) const;
         int getSockFd(void) const;
         void init(void);
         void receive(void);
+        void receive_first_message(void);
+        void sendEstimation(const std::vector<double>& estimation);
 };

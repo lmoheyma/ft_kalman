@@ -124,6 +124,77 @@ Vector addVectors(const Vector& a, const Vector& b) {
     return result;
 }
 
+Matrix inverseMatrix(const Matrix& m) {
+    size_t n = m.size();
+    if (n != m[0].size())
+        throw std::invalid_argument("La matrice doit être carrée");
+    Matrix inv(n, std::vector<double>(n, 0.0));
+    double det = 0.0;
+    if (n == 2) {
+        det = m[0][0]*m[1][1] - m[0][1]*m[1][0];
+        if (std::abs(det) < 1e-12)
+            throw std::runtime_error("Matrice non inversible");
+        inv[0][0] =  m[1][1] / det;
+        inv[0][1] = -m[0][1] / det;
+        inv[1][0] = -m[1][0] / det;
+        inv[1][1] =  m[0][0] / det;
+        return inv;
+    } else if (n == 3) {
+        det = m[0][0]*(m[1][1]*m[2][2] - m[1][2]*m[2][1])
+            - m[0][1]*(m[1][0]*m[2][2] - m[1][2]*m[2][0])
+            + m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]);
+        if (std::abs(det) < 1e-12)
+            throw std::runtime_error("Matrice non inversible");
+        inv[0][0] =  (m[1][1]*m[2][2] - m[1][2]*m[2][1]) / det;
+        inv[0][1] = -(m[0][1]*m[2][2] - m[0][2]*m[2][1]) / det;
+        inv[0][2] =  (m[0][1]*m[1][2] - m[0][2]*m[1][1]) / det;
+        inv[1][0] = -(m[1][0]*m[2][2] - m[1][2]*m[2][0]) / det;
+        inv[1][1] =  (m[0][0]*m[2][2] - m[0][2]*m[2][0]) / det;
+        inv[1][2] = -(m[0][0]*m[1][2] - m[0][2]*m[1][0]) / det;
+        inv[2][0] =  (m[1][0]*m[2][1] - m[1][1]*m[2][0]) / det;
+        inv[2][1] = -(m[0][0]*m[2][1] - m[0][1]*m[2][0]) / det;
+        inv[2][2] =  (m[0][0]*m[1][1] - m[0][1]*m[1][0]) / det;
+        return inv;
+    } else if (n == 4) {
+        // Calcul du déterminant
+        for (int i = 0; i < 4; ++i) {
+            double minor_det =
+                m[1][(i+1)%4] * (m[2][(i+2)%4]*m[3][(i+3)%4] - m[2][(i+3)%4]*m[3][(i+2)%4]) -
+                m[1][(i+2)%4] * (m[2][(i+1)%4]*m[3][(i+3)%4] - m[2][(i+3)%4]*m[3][(i+1)%4]) +
+                m[1][(i+3)%4] * (m[2][(i+1)%4]*m[3][(i+2)%4] - m[2][(i+2)%4]*m[3][(i+1)%4]);
+            det += (i%2==0 ? 1 : -1) * m[0][i] * minor_det;
+        }
+        if (std::abs(det) < 1e-12)
+            throw std::runtime_error("Matrice non inversible");
+        // Calcul de la comatrice et de la transposée (adjointe)
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                Matrix minor(3, std::vector<double>(3));
+                int mi = 0;
+                for (int ii = 0; ii < 4; ++ii) {
+                    if (ii == i) continue;
+                    int mj = 0;
+                    for (int jj = 0; jj < 4; ++jj) {
+                        if (jj == j) continue;
+                        minor[mi][mj] = m[ii][jj];
+                        ++mj;
+                    }
+                    ++mi;
+                }
+                // Déterminant du mineur 3x3
+                double minor_det =
+                    minor[0][0]*(minor[1][1]*minor[2][2] - minor[1][2]*minor[2][1])
+                  - minor[0][1]*(minor[1][0]*minor[2][2] - minor[1][2]*minor[2][0])
+                  + minor[0][2]*(minor[1][0]*minor[2][1] - minor[1][1]*minor[2][0]);
+                inv[j][i] = ((i+j)%2==0 ? 1 : -1) * minor_det / det;
+            }
+        }
+        return inv;
+    } else {
+        throw std::invalid_argument("Seules les matrices 2x2, 3x3 et 4x4 sont supportées");
+    }
+}
+
 void printMatrix(Matrix matrix) {
     for (size_t i = 0; i < matrix.size(); i++) {
         for (size_t j = 0; j < matrix[0].size(); j++) {
