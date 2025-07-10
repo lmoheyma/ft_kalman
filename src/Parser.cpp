@@ -27,8 +27,9 @@ std::vector<double> Parser::createInitialState(std::map<std::string, std::vector
         setRotationX(Rx, direction[0]);
         setRotationY(Ry, direction[1]);
         setRotationZ(Rz, direction[2]);
-        Matrix R = multiply(Rx, Ry);
-        R = multiply(R, Rz);
+        
+        Matrix R = multiply(Rz, Ry);
+        R = multiply(R, Rx);  // R = Rz * Ry * Rx
         speed = multiplyMatrixVector(R, speed);
 
         this->_initialState.insert(this->_initialState.begin(), position.begin(), position.end());

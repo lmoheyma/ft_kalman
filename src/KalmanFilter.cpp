@@ -12,18 +12,25 @@ void KalmanFilter::setStateVector(Vector stateVector) {
     this->_stateVector = stateVector;
 }
 
+Vector KalmanFilter::getAcceleration(void) const {
+    return this->_acceleration;
+}
+
 void KalmanFilter::setAcceleration(Vector acc) {
     this->_acceleration = acc;
 }
 
+Matrix KalmanFilter::getP(void) const {
+    return this->P;
+}
+
 void KalmanFilter::predictStateVector(void) {
-    std::cout << "Acceleration :" << std::endl;
-    printVector(this->_acceleration);
     Vector BuNoise = multiplyMatrixVector(this->B, this->_acceleration);
     Vector Fx = multiplyMatrixVector(this->F, this->_stateVector);
     try
     {
         this->_stateVector = addVectors(BuNoise, Fx);
+        this->P = addMatrix(multiply(multiply(this->F, this->P), transpose(this->F)), this->Q);
     }
     catch(const std::exception& e)
     {
@@ -110,10 +117,4 @@ void KalmanFilter::initControlMatrix(void) {
     Matrix upB = matrixScalar(identityMatrix(3), (DELTA_T * DELTA_T) * 1/2);
     Matrix lowB = matrixScalar(identityMatrix(3), DELTA_T);
     this->B = mergeMatrixVertical(upB, lowB);
-}
-
-void KalmanFilter::initObservationErrorCov(void) {
-    this->S = multiply(this->H, this->P);
-    this->S = multiply(this->S, transpose(this->H));
-    this->S = addMatrix(this->S, this->R);
 }

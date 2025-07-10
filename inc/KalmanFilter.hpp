@@ -30,6 +30,8 @@ class KalmanFilter
         Vector getStateVector(void) const;
         void setStateVector(Vector stateVector);
         void setAcceleration(Vector acc);
+        Vector getAcceleration(void) const;
+        Matrix getP(void) const;
         // Prediction, Update
         void predictStateVector(void);
         void update(const Vector& gps_measurement);

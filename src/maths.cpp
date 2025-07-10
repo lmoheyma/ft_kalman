@@ -39,9 +39,8 @@ Matrix multiply(const Matrix& A, const Matrix& B) {
 }
 
 Vector multiplyMatrixVector(const Matrix& matrix, const Vector& vector) {
-    Vector result(vector.size(), 0.0);
-
-    for (size_t i = 0; i < vector.size(); ++i) {
+    Vector result(matrix.size(), 0.0);
+    for (size_t i = 0; i < matrix.size(); ++i) {
         for (size_t j = 0; j < vector.size(); ++j) {
             result[i] += matrix[i][j] * vector[j];
         }
