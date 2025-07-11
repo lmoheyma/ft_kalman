@@ -49,8 +49,6 @@ void KalmanFilter::update(const Vector& gps_measurement) {
     Matrix HP = multiply(this->H, this->P);
     Matrix HPHt = multiply(HP, transpose(this->H));
     Matrix S = addMatrix(HPHt, this->R);
-
-    // Gain de Kalman K = PH^T S^-1
     Matrix PHt = multiply(this->P, transpose(this->H));
     Matrix S_inv = inverseMatrix(S);
     Matrix K = multiply(PHt, S_inv);
@@ -74,7 +72,7 @@ void KalmanFilter::update(const Vector& gps_measurement) {
 }
 
 void KalmanFilter::initCovarianceMatrix(void) {
-    Vector diagonal = {0.01, 0.01, 0.01, 0.5, 0.5, 0.5};
+    Vector diagonal = {0.01, 0.01, 0.01, 0.01, 0.01, 0.01};
     this->P = diagonalMatrix(diagonal);
 }
 

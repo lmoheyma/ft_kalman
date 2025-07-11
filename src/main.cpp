@@ -20,6 +20,10 @@ int main() {
     Parser parser;
     client.init();
 
+    // Delete les logs
+    std::ofstream clearfile("logs.txt", std::ios::trunc);
+    clearfile.close();
+
     while (true) {
         client.receive_first_message();
         if (client.getBuffer().find("MSG_END") != std::string::npos) {
@@ -48,6 +52,8 @@ int main() {
     client.sendEstimation(estimation);
 
     try {
+        double current_time = 0.0;
+
         while (true) {
             client.setIndex(0);
             while (true) {
@@ -81,7 +87,6 @@ int main() {
 
             kalmanFilter.predictStateVector();
 
-            std::cout << data.count("TRUE_POSITION") << std::endl;
             if (data.count("POSITION") || data.count("TRUE_POSITION")) {
                 if (data.count("POSITION")) {
                     std::cout << "Update with position" << std::endl;
@@ -93,22 +98,29 @@ int main() {
                 }
             }
 
-            std::cout << "Accélération utilisée : ";
-            printVector(kalmanFilter.getAcceleration());
-            std::cout << "Direction utilisée : ";
-            printVector(data["DIRECTION"]);
-            std::cout << "Etat estimé : ";
-            printVector(kalmanFilter.getStateVector());
-            std::cout << "Diagonale de P : ";
-            for (size_t i = 0; i < kalmanFilter.getP().size(); ++i)
-                std::cout << kalmanFilter.getP()[i][i] << " ";
-            std::cout << std::endl;
-
             std::vector<double> state = kalmanFilter.getStateVector();
             std::vector<double> estimation = {state[0], state[1], state[2]};
             client.sendEstimation(estimation);
 
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+            double pos_est_x = state[0];
+            double vel_x = state[3];
+            double pos_true_x = 0.0;
+            if (data.count("POSITION"))
+                pos_true_x = data["POSITION"][0];
+
+            std::ofstream logfile("logs.txt", std::ios::app); // ouvre en mode ajout
+            if (logfile.is_open()) {
+                logfile << "t=" << current_time
+                        << " POS_EST=" << pos_est_x
+                        << " VEL_X=" << vel_x
+                        << " POS_TRUE=" << pos_true_x
+                        << std::endl;
+                logfile.close();
+            }
+
+            current_time += DELTA_T;
         }
     } catch (const std::exception& e) {
         std::cerr << "Exception : " << e.what() << std::endl;

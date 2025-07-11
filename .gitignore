@@ -1,3 +1,5 @@
 .vscode/
 obj/
 KalmanClient
+venv/
+logs.txt
