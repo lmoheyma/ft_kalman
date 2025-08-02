@@ -72,7 +72,7 @@ void KalmanFilter::update(const Vector& gps_measurement) {
 }
 
 void KalmanFilter::initCovarianceMatrix(void) {
-    Vector diagonal = {0.01, 0.01, 0.01, 0.01, 0.01, 0.01};
+    Vector diagonal = {0.01, 0.01, 0.01, 0.1, 0.1, 0.1};
     this->P = diagonalMatrix(diagonal);
 }
 

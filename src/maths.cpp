@@ -155,7 +155,6 @@ Matrix inverseMatrix(const Matrix& m) {
         inv[2][2] =  (m[0][0]*m[1][1] - m[0][1]*m[1][0]) / det;
         return inv;
     } else if (n == 4) {
-        // Calcul du déterminant
         for (int i = 0; i < 4; ++i) {
             double minor_det =
                 m[1][(i+1)%4] * (m[2][(i+2)%4]*m[3][(i+3)%4] - m[2][(i+3)%4]*m[3][(i+2)%4]) -
@@ -165,7 +164,6 @@ Matrix inverseMatrix(const Matrix& m) {
         }
         if (std::abs(det) < 1e-12)
             throw std::runtime_error("Matrice non inversible");
-        // Calcul de la comatrice et de la transposée (adjointe)
         for (int i = 0; i < 4; ++i) {
             for (int j = 0; j < 4; ++j) {
                 Matrix minor(3, std::vector<double>(3));
@@ -180,7 +178,6 @@ Matrix inverseMatrix(const Matrix& m) {
                     }
                     ++mi;
                 }
-                // Déterminant du mineur 3x3
                 double minor_det =
                     minor[0][0]*(minor[1][1]*minor[2][2] - minor[1][2]*minor[2][1])
                   - minor[0][1]*(minor[1][0]*minor[2][2] - minor[1][2]*minor[2][0])
@@ -190,7 +187,7 @@ Matrix inverseMatrix(const Matrix& m) {
         }
         return inv;
     } else {
-        throw std::invalid_argument("Seules les matrices 2x2, 3x3 et 4x4 sont supportées");
+        throw std::invalid_argument("uniquement 2x2, 3x3 et 4x4");
     }
 }
 

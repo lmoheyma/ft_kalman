@@ -82,6 +82,8 @@ int main() {
                 Matrix R = multiply(Rz, Ry);
                 R = multiply(R, Rx);  // donc : R = Rz * Ry * Rx
                 std::vector<double> acc_global = multiplyMatrixVector(R, data["ACCELERATION"]);
+                std::cout << "Acceleration after direction: " << std::endl;
+                printVector(acc_global); 
                 kalmanFilter.setAcceleration(acc_global);
             }
 
