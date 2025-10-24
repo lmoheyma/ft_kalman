@@ -98,7 +98,7 @@ void KalmanFilter::initStateTransitionMatrix(void) {
 }
 
 Matrix KalmanFilter::propagationMatrix(void) {
-    Matrix upG = matrixScalar(identityMatrix(3), (DELTA_T * DELTA_T) * 1/2);
+    Matrix upG = matrixScalar(identityMatrix(3), (DELTA_T * DELTA_T) * 0.5);
     Matrix lowG = matrixScalar(identityMatrix(3), DELTA_T);
     return mergeMatrixVertical(upG, lowG);
 }
@@ -112,7 +112,7 @@ void KalmanFilter::initProcessNoiseMatrix(void) {
 }
 
 void KalmanFilter::initControlMatrix(void) {
-    Matrix upB = matrixScalar(identityMatrix(3), (DELTA_T * DELTA_T) * 1/2);
+    Matrix upB = matrixScalar(identityMatrix(3), (DELTA_T * DELTA_T) * 0.5);
     Matrix lowB = matrixScalar(identityMatrix(3), DELTA_T);
     this->B = mergeMatrixVertical(upB, lowB);
 }
