@@ -127,13 +127,13 @@ int main() {
             double pos_est_x = state[0];
             double vel_x = state[3];
             double pos_gps_x = 0.0;
-            double pos_true_x = 0.0;
+            // double pos_true_x = 0.0;
             bool has_gps = data.count("POSITION") > 0;
             
             if (has_gps)
                 pos_gps_x = data["POSITION"][0];
-            if (data.count("TRUE_POSITION"))
-                pos_true_x = data["TRUE_POSITION"][0];
+            // if (data.count("TRUE_POSITION"))
+            //     pos_true_x = data["TRUE_POSITION"][0];
 
             std::ofstream logfile("logs.txt", std::ios::app);
             if (logfile.is_open()) {

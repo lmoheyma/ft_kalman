@@ -40,7 +40,7 @@ void Client::init(void)
     this->_servaddr.sin_addr.s_addr = INADDR_ANY;
 
     sendto(this->_sockfd, (const char *)START_MSG, strlen(START_MSG), 
-        MSG_CONFIRM, (const struct sockaddr *) &this->_servaddr,  
+        0, (const struct sockaddr *) &this->_servaddr,  
             sizeof(this->_servaddr));
 }
 
@@ -102,7 +102,7 @@ void Client::sendEstimation(const std::vector<double>& estimation) {
     char buffer[128];
     snprintf(buffer, sizeof(buffer), "%.15f %.15f %.15f", estimation[0], estimation[1], estimation[2]);
     sendto(this->_sockfd, (const char *)buffer, strlen(buffer), 
-        MSG_CONFIRM, (const struct sockaddr *) &this->_servaddr,  
+        0, (const struct sockaddr *) &this->_servaddr,  
             sizeof(this->_servaddr));
     std::cout << "Estimation envoyée : " << buffer << std::endl;
 }
