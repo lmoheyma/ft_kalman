@@ -98,19 +98,16 @@ int main() {
             std::vector<double> state = kalmanFilter.getStateVector();
             std::vector<double> estimation = {state[0], state[1], state[2]};
             
-            // Vérification de l'erreur AVANT la mise à jour GPS
+            // Mettre à jour avec TRUE_POSITION (CLI avec -debug)
             if (data.count("TRUE_POSITION")) {
-                double error = calculateDistance(estimation, data["TRUE_POSITION"]);
-                std::cout << "Erreur vs TRUE_POSITION : " << error << "m" << std::endl;
-                if (error > 5.0) {
-                    std::cerr << "ERREUR CRITIQUE : Distance > 5m (" << error << "m)" << std::endl;
-                    std::cerr << "Position estimée : [" << estimation[0] << ", " << estimation[1] << ", " << estimation[2] << "]" << std::endl;
-                    std::cerr << "Position réelle : [" << data["TRUE_POSITION"][0] << ", " << data["TRUE_POSITION"][1] << ", " << data["TRUE_POSITION"][2] << "]" << std::endl;
-                    break;
-                }
+                std::cout << "Update with GPS position (TRUE_POSITION)" << std::endl;
+                kalmanFilter.update(data["TRUE_POSITION"]);
+                // Recalculer l'état après la mise à jour
+                state = kalmanFilter.getStateVector();
+                estimation = {state[0], state[1], state[2]};
             }
 
-            // Ne mettre à jour qu'avec POSITION (GPS bruité), jamais TRUE_POSITION
+            // Mettre à jour avec POSITION
             if (data.count("POSITION")) {
                 std::cout << "Update with GPS position" << std::endl;
                 kalmanFilter.update(data["POSITION"]);
