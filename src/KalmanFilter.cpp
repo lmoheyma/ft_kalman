@@ -72,7 +72,10 @@ void KalmanFilter::update(const Vector& gps_measurement) {
 }
 
 void KalmanFilter::initCovarianceMatrix(void) {
-    Vector diagonal = {0.01, 0.01, 0.01, 0.1, 0.1, 0.1};
+    double pos_var = GPS_NOISE * GPS_NOISE;
+    double vel_var = GYROSCOPE_NOISE * GYROSCOPE_NOISE + ACCELEROMETER_NOISE * ACCELEROMETER_NOISE * DELTA_T;
+
+    Vector diagonal = {pos_var, pos_var, pos_var, vel_var, vel_var, vel_var};
     this->P = diagonalMatrix(diagonal);
 }
 
@@ -107,8 +110,13 @@ void KalmanFilter::initProcessNoiseMatrix(void) {
     Matrix G = propagationMatrix();
     Matrix GTransposed = transpose(G);
  
+    double acc_variance = ACCELEROMETER_NOISE * ACCELEROMETER_NOISE;
+    double gyro_variance = GYROSCOPE_NOISE * GYROSCOPE_NOISE;
+
+    double total_acc_variance = acc_variance + gyro_variance;
+
     this->Q = multiply(G, GTransposed);
-    this->Q = matrixScalar(this->Q, ACCELEROMETER_NOISE * ACCELEROMETER_NOISE);
+    this->Q = matrixScalar(this->Q, total_acc_variance);
 }
 
 void KalmanFilter::initControlMatrix(void) {

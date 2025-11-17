@@ -2,8 +2,8 @@
 
 Matrix setRotationX(Matrix& matrix, double phi) {
     matrix[0][0] = 1; matrix[0][1] = 0;             matrix[0][2] = 0;
-    matrix[1][0] = 0; matrix[1][1] = std::cos(phi); matrix[1][2] = std::sin(phi);
-    matrix[2][0] = 0; matrix[2][1] = -std::sin(phi);matrix[2][2] = std::cos(phi);
+    matrix[1][0] = 0; matrix[1][1] = std::cos(phi); matrix[1][2] = -std::sin(phi);
+    matrix[2][0] = 0; matrix[2][1] = std::sin(phi); matrix[2][2] = std::cos(phi);
     return matrix;
 }
 

@@ -47,9 +47,25 @@ int main() {
     
     KalmanFilter kalmanFilter;
     
-    // NE PAS transformer l'accélération initiale
-    // Le véhicule se déplace selon son axe longitudinal dans son propre repère
-    kalmanFilter.setAcceleration(parsed.at("ACCELERATION"));
+    // Transformer l'accélération initiale du repère véhicule vers repère global
+    std::vector<double> initial_acc = parsed.at("ACCELERATION");
+    if (parsed.count("DIRECTION")) {
+        std::vector<double> direction = parsed.at("DIRECTION");
+        Matrix Rx(3, std::vector<double>(3, 0.0));
+        Matrix Ry(3, std::vector<double>(3, 0.0));
+        Matrix Rz(3, std::vector<double>(3, 0.0));
+        setRotationX(Rx, direction[0]);
+        setRotationY(Ry, direction[1]);
+        setRotationZ(Rz, direction[2]);
+
+        Matrix R = multiply(Rz, Ry);
+        R = multiply(R, Rx);
+        initial_acc = multiplyMatrixVector(R, initial_acc);
+        std::cout << "Acceleration initiale (repère global) : ";
+        printVector(initial_acc);
+    }
+
+    kalmanFilter.setAcceleration(initial_acc);
     kalmanFilter.setStateVector(parser.createInitialState(parsed));
     kalmanFilter.initProcessNoiseMatrix();
     kalmanFilter.initCovarianceMatrix();
@@ -70,6 +86,11 @@ int main() {
     try {
         double current_time = 0.0;
 
+        std::vector<double> direction(3, 0.0);
+        if (parsed.count("DIRECTION")) {
+            direction = parsed["DIRECTION"];
+        }
+
         while (true) {
             client.setIndex(0);
             while (true) {
@@ -85,12 +106,26 @@ int main() {
             std::cout << "--- Données reçues ---" << std::endl;
             printData(data);
 
-            // NE PAS transformer l'accélération
-            // Le véhicule se déplace selon son axe longitudinal dans son propre repère
+            if (data.count("DIRECTION")) {
+                direction = data["DIRECTION"];
+            }
+
             if (data.count("ACCELERATION")) {
-                std::cout << "Acceleration (repère véhicule): " << std::endl;
-                printVector(data["ACCELERATION"]); 
-                kalmanFilter.setAcceleration(data["ACCELERATION"]);
+                std::vector<double> acc_local = data["ACCELERATION"];
+                Matrix Rx(3, std::vector<double>(3, 0.0));
+                Matrix Ry(3, std::vector<double>(3, 0.0));
+                Matrix Rz(3, std::vector<double>(3, 0.0));
+
+                setRotationX(Rx, direction[0]);
+                setRotationY(Ry, direction[1]);
+                setRotationZ(Rz, direction[2]);
+
+                // conventional composition R = Rz * Ry * Rx
+                Matrix R = multiply(Rz, Ry);
+                R = multiply(R, Rx);
+                std::vector<double> acc_global = multiplyMatrixVector(R, acc_local);
+                printVector(acc_global);
+                kalmanFilter.setAcceleration(acc_global);
             }
 
             kalmanFilter.predictStateVector();
