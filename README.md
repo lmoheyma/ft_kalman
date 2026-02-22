@@ -1,980 +1,475 @@
-# 🚀 ft_kalman - Filtre de Kalman pour Navigation Inertielle
+# ft_kalman — Filtre de Kalman pour Navigation Inertielle
 
-Implémentation d'un **filtre de Kalman** en C++ pour estimer la position d'un véhicule en 3D à partir de capteurs inertiels (IMU) bruités.
-
----
-
-## 📖 Table des Matières
-
-1. [Introduction au Projet](#-introduction-au-projet)
-2. [Contexte et Objectifs](#-contexte-et-objectifs)
-3. [Théorie du Filtre de Kalman](#-théorie-du-filtre-de-kalman)
-4. [Explications Détaillées des Matrices](#-explications-détaillées-des-matrices)
-5. [Algorithme Complet](#-algorithme-complet)
-6. [Architecture du Code](#-architecture-du-code)
-7. [Compilation et Utilisation](#-compilation-et-utilisation)
-8. [Ressources et Références](#-ressources-et-références)
+Implémentation d'un **filtre de Kalman** en C++ pour estimer la position 3D d'un véhicule à partir de capteurs inertiels (IMU) bruités.
 
 ---
 
-## 🎯 Introduction au Projet
+## Table des Matières
 
-### Qu'est-ce qu'un Filtre de Kalman ?
-
-Le **filtre de Kalman** est un algorithme mathématique qui permet d'estimer l'état d'un système dynamique (comme la position et la vitesse d'un véhicule) à partir de **mesures bruitées et incomplètes**.
-
-#### Utilisations dans le Monde Réel :
-- 🛩️ **Navigation aérienne et spatiale** (GPS + accéléromètres)
-- 🚗 **Voitures autonomes** (fusion de capteurs)
-- 📱 **Smartphones** (localisation indoor)
-- 💹 **Finance** (prédiction de tendances)
-- 🎥 **Vision par ordinateur** (tracking d'objets)
-
-### Le Problème à Résoudre
-
-Imaginez un véhicule dans l'espace (sans gravité ni air) qui possède :
-- Un **accéléromètre** : mesure l'accélération très souvent (100 Hz) mais avec un petit bruit
-- Un **GPS** : mesure la position rarement (0.33 Hz) mais avec un gros bruit
-- Un **gyroscope** : mesure l'orientation avec un bruit moyen
-
-**Question** : Comment combiner ces mesures imparfaites pour obtenir la meilleure estimation possible de la position ?
-
-**Réponse** : Le filtre de Kalman !
+1. [C'est quoi ce projet ?](#cest-quoi-ce-projet-)
+2. [Le problème en une image mentale](#le-problème-en-une-image-mentale)
+3. [Les capteurs disponibles](#les-capteurs-disponibles)
+4. [Comment fonctionne un filtre de Kalman](#comment-fonctionne-un-filtre-de-kalman)
+5. [Les matrices expliquées une par une](#les-matrices-expliquées-une-par-une)
+6. [Architecture du code](#architecture-du-code)
+7. [Compilation et utilisation](#compilation-et-utilisation)
+8. [Protocole de communication UDP](#protocole-de-communication-udp)
+9. [Points techniques importants](#points-techniques-importants)
+10. [Ressources](#ressources)
 
 ---
 
-## 🎮 Contexte et Objectifs
+## C'est quoi ce projet ?
 
-### Scénario du Projet
+Un programme externe (le « serveur IMU ») simule un véhicule qui se déplace dans un espace 3D sans gravité ni air.  
+Ce véhicule possède des capteurs imparfaits : accéléromètre, gyroscope, GPS.  
+Notre travail : écrire un **client** qui reçoit ces mesures bruitées, et renvoie au serveur une **estimation de la position** la plus proche possible de la réalité.
 
-Vous êtes la **centrale inertielle (IMU)** d'un véhicule générique se déplaçant dans un environnement sans air ni gravité. Le véhicule se déplace **uniquement selon son axe longitudinal** (vers l'avant).
+Si notre estimation s'éloigne de plus de **5 mètres** de la vraie position, ou si on met plus d'**1 seconde** à répondre, le serveur coupe la communication.
 
-### Capteurs Disponibles
-
-| Capteur | Fréquence | Bruit (σ) | Mesure |
-|---------|-----------|-----------|--------|
-| **Accéléromètre** | 100 Hz (0.01s) | 10⁻³ | Accélération (ax, ay, az) en m/s² |
-| **Gyroscope** | 100 Hz (0.01s) | 10⁻² | Direction (angles d'Euler) |
-| **GPS** | 0.33 Hz (3s) | 10⁻¹ | Position (x, y, z) en mètres |
-
-> **Note** : Le bruit est un **bruit blanc gaussien** avec moyenne υ = 0 et écart-type σ
-
-### Contraintes
-
-- ❌ **Erreur maximale** : Votre estimation ne doit **JAMAIS** dépasser 5 mètres de la position réelle
-- ⏱️ **Timeout** : Votre filtre doit répondre en moins d'1 seconde
-- 🎯 **Précision** : Plus votre estimation est proche de la réalité, mieux c'est
-- ⏳ **Durée** : Le système doit fonctionner jusqu'à 90 minutes de trajectoire
-
-### Objectif
-
-Créer un filtre de Kalman qui **fusionne intelligemment** les mesures de l'accéléromètre (fréquent mais bruité) et du GPS (rare mais moins bruité) pour obtenir une estimation optimale de la position.
+L'outil mathématique utilisé est le **filtre de Kalman** : un algorithme qui permet de fusionner intelligemment plusieurs sources d'information imparfaites pour obtenir la meilleure estimation possible.
 
 ---
 
-## 🧮 Théorie du Filtre de Kalman
+## Le problème en une image mentale
 
-### Le Principe Fondamental
+Imaginez que vous conduisez les yeux fermés.  
 
-Le filtre de Kalman résout le problème suivant :
+- Toutes les **0.01 secondes**, un copilote vous dit « tu accélères de tant » (accéléromètre). Il est assez précis, mais il fait de petites erreurs.  
+- Toutes les **3 secondes**, il ouvre brièvement la fenêtre et vous dit « on est à peu près là » (GPS). Il est moins précis, mais il donne une position absolue.  
 
-> **"Comment estimer optimalement l'état d'un système dynamique à partir de mesures bruitées ?"**
-
-Il trouve un **compromis optimal** (au sens statistique des moindres carrés) entre :
-1. **Le modèle physique** : "Je connais les lois de la physique (cinématique)"
-2. **Les mesures bruitées** : "Mes capteurs me disent quelque chose, mais avec du bruit"
-
-### Les Deux Phases du Filtre
-
-Le filtre de Kalman fonctionne en **deux étapes** répétées en boucle :
-
-#### 1️⃣ **PRÉDICTION** (toutes les 0.01s avec l'accéléromètre)
-
-On utilise le **modèle physique** pour prédire où devrait être le véhicule :
-
-```
-"Si j'étais à la position X avec une vitesse V,
-et que j'accélère de A pendant Δt secondes,
-où devrais-je être maintenant ?"
-```
-
-**Équations** :
-```
-x̂(k|k-1) = F × x̂(k-1) + B × u(k)  ← Prédire l'état
-P(k|k-1) = F × P(k-1) × Fᵀ + Q      ← Incertitude augmente
-```
-
-#### 2️⃣ **MISE À JOUR** (toutes les 3s quand le GPS arrive)
-
-On utilise la **mesure GPS** pour corriger la prédiction :
-
-```
-"Le GPS me dit que je suis à la position Z,
-mais ma prédiction disait position X,
-combien dois-je corriger ?"
-```
-
-**Équations** :
-```
-y = z_GPS - H × x̂(k|k-1)           ← Innovation (erreur)
-K = P × Hᵀ × (H×P×Hᵀ + R)⁻¹         ← Gain optimal
-x̂(k|k) = x̂(k|k-1) + K × y          ← Correction
-P(k|k) = (I - K×H) × P(k|k-1)       ← Incertitude diminue
-```
-
-### Illustration du Processus
-
-```
-Temps 0.00s: 
-  Initialisation avec position et vitesse vraies
-  
-Temps 0.01s:
-  PRÉDICTION avec accéléromètre
-  → Position estimée (incertitude +)
-  
-Temps 0.02s:
-  PRÉDICTION avec accéléromètre
-  → Position estimée (incertitude ++)
-  
-...
-
-Temps 3.00s:
-  MISE À JOUR avec GPS !
-  → Correction de la position (incertitude -)
-  
-Temps 3.01s:
-  PRÉDICTION avec accéléromètre
-  → Position estimée (incertitude +)
-  
-... et ainsi de suite
-```
-
-### Le Gain de Kalman : Le Cœur du Filtre
-
-Le **gain de Kalman K** détermine **à quel point on fait confiance** au GPS vs. à notre prédiction.
-
-**Cas 1** : Prédiction incertaine (P grand) + GPS précis (R petit)
-```
-K → grand → on corrige beaucoup
-x_new ≈ z_GPS (on fait confiance au GPS)
-```
-
-**Cas 2** : Prédiction précise (P petit) + GPS bruité (R grand)
-```
-K → petit → on corrige peu
-x_new ≈ x_pred (on ignore le GPS)
-```
-
-**Le filtre calcule automatiquement le meilleur compromis !**
+Le filtre de Kalman, c'est votre cerveau : il combine les deux informations en permanence pour avoir la meilleure idée possible de « où suis-je ? ».
 
 ---
 
-## 📊 Explications Détaillées des Matrices
+## Les capteurs disponibles
 
-### Vue d'Ensemble
+| Capteur | Ce qu'il mesure | Fréquence | Bruit (σ) | Repère |
+|---|---|---|---|---|
+| **Accéléromètre** | Accélération (ax, ay, az) en m/s² | 100 Hz (toutes les 0.01s) | σ = 10⁻³ | Repère monde (XYZ) |
+| **Gyroscope** | Orientation (angles d'Euler) | 100 Hz | σ = 10⁻² | Lien corps ↔ monde |
+| **GPS** | Position (x, y, z) en mètres | ~0.33 Hz (toutes les 3s) | σ = 10⁻¹ | Repère monde (XYZ) |
 
-| Symbole | Nom | Dimension | Type | Rôle |
-|---------|-----|-----------|------|------|
-| **x** | Vecteur d'état | 6×1 | Vecteur | Ce qu'on estime |
-| **F** | Transition d'état | 6×6 | Matrice | Lois de la physique |
-| **B** | Contrôle | 6×3 | Matrice | Effet de l'accélération |
-| **H** | Observation | 3×6 | Matrice | Lien état ↔ mesure |
-| **P** | Covariance état | 6×6 | Matrice | Incertitude estimation |
-| **Q** | Bruit processus | 6×6 | Matrice | Bruit accéléromètre |
-| **R** | Bruit mesure | 3×3 | Matrice | Bruit GPS |
-| **K** | Gain de Kalman | 6×3 | Matrice | Pondération optimale |
+Le bruit est **gaussien** (courbe en cloche) centré sur 0 (moyenne μ = 0).  
+En clair : les erreurs sont aléatoires, symétriques, et le plus souvent petites.
+
+**Point important** : les accélérations et positions sont **déjà exprimées dans le repère monde** (XYZ). Le gyroscope (orientation) sert uniquement à connaître la direction du véhicule et à décomposer la vitesse initiale.
 
 ---
 
-### 1️⃣ Vecteur d'État (x) - 6×1
+## Comment fonctionne un filtre de Kalman
 
-**Définition** : Tout ce qu'on veut estimer sur le système.
+### Le principe en deux phrases
+
+Le filtre maintient en permanence **deux choses** :
+1. **Ce qu'il pense** : une estimation de l'état (position + vitesse)
+2. **À quel point il en est sûr** : une matrice de covariance (l'incertitude)
+
+### Les deux phases, en boucle
+
+#### Phase 1 — PRÉDICTION (à chaque pas de temps, toutes les 0.01s)
+
+On utilise la physique pour deviner où on sera au prochain instant :
 
 ```
-x = [x,  y,  z,  vx, vy, vz]ᵀ
-     ↑   ↑   ↑   ↑   ↑   ↑
-     Position 3D   Vitesse 3D
-     (mètres)      (m/s)
+nouvelle_position = ancienne_position + vitesse × Δt + ½ × accélération × Δt²
+nouvelle_vitesse  = ancienne_vitesse  + accélération × Δt
 ```
 
-**Exemple** :
+En même temps, on **augmente l'incertitude** : puisqu'on se base sur un modèle imparfait et des mesures bruitées, on est un peu moins sûr de nous à chaque prédiction.
+
+#### Phase 2 — CORRECTION (quand un GPS arrive, toutes les 3s)
+
+Quand le GPS donne une mesure de position, on la compare avec notre prédiction :
+
 ```
-x = [100.5    ← Le véhicule est à X = 100.5m
-     -50.2    ← Y = -50.2m
-      30.0    ← Z = 30.0m
-      15.3    ← Se déplace à vx = 15.3 m/s en X
-       0.0    ← vy = 0 m/s (pas de mouvement latéral)
-       0.0]   ← vz = 0 m/s (pas de mouvement vertical)
-```
-
-**Pourquoi 6 dimensions ?**
-- Position seule ne suffit pas → on a besoin de la vitesse pour prédire le futur
-- Vitesse seule ne suffit pas → on veut connaître la position
-
----
-
-### 2️⃣ Matrice de Transition d'État (F) - 6×6
-
-**Rôle** : Modélise comment l'état évolue naturellement avec le temps (sans accélération externe).
-
-**Équations physiques** :
-```
-Position nouvelle = Position ancienne + Vitesse × Temps
-Vitesse nouvelle  = Vitesse ancienne (si pas d'accélération)
+innovation = position_GPS − position_prédite
 ```
 
-**Matrice** :
+Puis on calcule un **gain de Kalman** (K) qui décide : « de combien je corrige ma prédiction ? ».  
+Ce gain dépend du rapport entre l'incertitude de notre prédiction et l'incertitude du GPS :
+
+- Si on est **très incertain** sur notre prédiction → K est grand → on fait davantage confiance au GPS
+- Si le **GPS est très bruité** → K est petit → on garde surtout notre prédiction
+
+Après correction, l'incertitude **diminue** : en combinant deux sources d'information, on sait mieux où on est qu'avec une seule.
+
+### Le cycle complet
+
 ```
-F = [1  0  0  Δt  0   0 ]
-    [0  1  0  0   Δt  0 ]    Avec Δt = 0.01s
-    [0  0  1  0   0   Δt]
-    [0  0  0  1   0   0 ]
-    [0  0  0  0   1   0 ]
-    [0  0  0  0   0   1 ]
-```
-
-**Explication ligne par ligne** :
-
-- **Ligne 1** : `x_new = 1×x_old + Δt×vx`
-  - Position X évolue selon sa vitesse
-  
-- **Ligne 4** : `vx_new = 1×vx_old`
-  - Vitesse reste constante (principe d'inertie)
-
-**Code** :
-```cpp
-void KalmanFilter::initStateTransitionMatrix(void) {
-    // Matrice identité 6×6
-    for (size_t i = 0; i < 6; i++)
-        F[i][i] = 1.0;
-    
-    // Ajout des termes de couplage position-vitesse
-    for (size_t i = 0; i < 3; i++)
-        F[i][i+3] = DELTA_T;  // F[0][3] = F[1][4] = F[2][5] = 0.01
-}
-```
-
-**Exemple numérique** :
-
-Si `x = [100, 50, 30, 10, 5, 2]` (position + vitesse)
-
-Alors `F×x` après 0.01s :
-```
-[1  0  0  0.01  0     0   ] [100]   [100.1]  ← x += vx×0.01 = 100 + 10×0.01
-[0  1  0  0     0.01  0   ] [50 ] = [50.05]  ← y += vy×0.01 = 50 + 5×0.01
-[0  0  1  0     0     0.01] [30 ]   [30.02]  ← z += vz×0.01
-[0  0  0  1     0     0   ] [10 ]   [10   ]  ← vx inchangé
-[0  0  0  0     1     0   ] [5  ]   [5    ]  ← vy inchangé
-[0  0  0  0     0     1   ] [2  ]   [2    ]  ← vz inchangé
+[Initialisation] → [Prédiction] → Envoi estimation → [Réception données]
+                         ↑                                      ↓
+                         ← ← ← ← ← (+ Correction si GPS) ← ← ←
 ```
 
 ---
 
-### 3️⃣ Matrice de Contrôle (B) - 6×3
+## Les matrices expliquées une par une
 
-**Rôle** : Traduit l'accélération mesurée en changement d'état.
+Le filtre manipule un ensemble de matrices. Voici chacune d'entre elles, ce qu'elle représente concrètement, et comment elle est construite dans le code.
 
-**Équations physiques** :
-```
-Δposition = ½ × accélération × temps²
-Δvitesse  = accélération × temps
-```
+### Résumé
 
-**Matrice** :
-```
-B = [Δt²/2   0      0    ]
-    [0       Δt²/2  0    ]
-    [0       0      Δt²/2]
-    [Δt      0      0    ]
-    [0       Δt     0    ]
-    [0       0      Δt   ]
-
-Avec Δt = 0.01s :
-
-B = [0.00005   0        0      ]
-    [0         0.00005  0      ]
-    [0         0        0.00005]
-    [0.01      0        0      ]
-    [0         0.01     0      ]
-    [0         0        0.01   ]
-```
-
-**Utilisation** :
-```cpp
-// u = [ax, ay, az] = accélération mesurée
-Vector Bu = B × u;  // Contribution de l'accélération
-```
-
-**Exemple numérique** :
-
-Si accélération `u = [2.0, 0.0, 0.0]` m/s² :
-```
-B × u = [0.00005×2.0]   [0.0001]  ← Position X augmente de 0.1mm
-        [0.00005×0.0] = [0.0   ]  ← Position Y inchangée
-        [0.00005×0.0]   [0.0   ]  ← Position Z inchangée
-        [0.01   ×2.0]   [0.02  ]  ← Vitesse X augmente de 2 cm/s
-        [0.01   ×0.0]   [0.0   ]
-        [0.01   ×0.0]   [0.0   ]
-```
-
-**Code** :
-```cpp
-void KalmanFilter::initControlMatrix(void) {
-    Matrix upB = matrixScalar(identityMatrix(3), (DELTA_T * DELTA_T) * 0.5);
-    Matrix lowB = matrixScalar(identityMatrix(3), DELTA_T);
-    this->B = mergeMatrixVertical(upB, lowB);
-}
-```
+| Symbole | Nom | Taille | Rôle en une phrase |
+|---|---|---|---|
+| **x** | Vecteur d'état | 6×1 | Ce qu'on cherche à estimer (position + vitesse) |
+| **F** | Transition d'état | 6×6 | Les lois de la physique (cinématique) |
+| **B** | Contrôle | 6×3 | Comment l'accélération modifie l'état |
+| **H** | Observation | 3×6 | Ce que le GPS peut voir (position seulement) |
+| **P** | Covariance d'état | 6×6 | À quel point on est sûr de notre estimation |
+| **Q** | Bruit de processus | 6×6 | Combien d'erreur les capteurs ajoutent par pas |
+| **R** | Bruit de mesure | 3×3 | Combien le GPS est bruité |
+| **K** | Gain de Kalman | 6×3 | Le compromis optimal prédiction ↔ GPS |
 
 ---
 
-### 4️⃣ Matrice d'Observation (H) - 3×6
+### x — Vecteur d'état (6×1)
 
-**Rôle** : Extrait ce que le GPS peut mesurer depuis l'état complet.
+C'est le cœur du filtre : tout ce qu'on cherche à connaître sur le véhicule.
 
-**Signification** : "Le GPS ne mesure que la **position**, pas la vitesse"
-
-**Matrice** :
 ```
-H = [1  0  0  0  0  0]
-    [0  1  0  0  0  0]
-    [0  0  1  0  0  0]
-     ↑           ↑
-     Position    Vitesse (ignorée)
+x = [ px, py, pz, vx, vy, vz ]
+      ─────────  ─────────────
+      Position    Vitesse
+      (mètres)    (m/s)
 ```
 
-**Utilisation** :
-```cpp
-Vector position_estimée = H × x;  // Extrait [x, y, z] de [x,y,z,vx,vy,vz]
-```
+On modélise la position ET la vitesse parce que pour prédire la position future, il faut connaître la vitesse actuelle.
 
-**Exemple** :
-```
-Si x = [100, -50, 30, 15, 0, 0]ᵀ
-
-H×x = [1  0  0  0  0  0] [100]   [100]
-      [0  1  0  0  0  0] [-50] = [-50]
-      [0  0  1  0  0  0] [30 ]   [30 ]
-                         [15 ]
-                         [0  ]
-                         [0  ]
-```
-
-Le GPS devrait mesurer environ `[100, -50, 30]` (+ bruit)
-
-**Code** :
-```cpp
-void KalmanFilter::initMeasurementMatrix(void) {
-    // [I₃×₃ | 0₃×₃]ᵀ
-    this->H = mergeMatrixVertical(identityMatrix(3), Matrix(3, std::vector<double>(3, 0.0)));
-    this->H = transpose(this->H);
-}
-```
+**Initialisation dans le code** ([Parser.cpp](src/Parser.cpp)) :
+- La position initiale vient de `TRUE_POSITION` (position vraie fournie au démarrage)
+- La vitesse initiale est un scalaire en km/h (`SPEED`) que l'on convertit en m/s et décompose dans les 3 axes monde via la rotation d'orientation initiale (`DIRECTION`), car le véhicule avance selon son axe longitudinal
 
 ---
 
-### 5️⃣ Matrice de Covariance de l'État (P) - 6×6
+### F — Matrice de transition d'état (6×6)
 
-**Rôle** : Quantifie **l'incertitude** sur chaque composante de l'état.
-
-**Matrice** (simplifiée, diagonale) :
-```
-P = [σx²    0      0      0      0      0    ]
-    [0      σy²    0      0      0      0    ]
-    [0      0      σz²    0      0      0    ]
-    [0      0      0      σvx²   0      0    ]
-    [0      0      0      0      σvy²   0    ]
-    [0      0      0      0      0      σvz² ]
-```
-
-**Interprétation** :
-
-- `P[0][0] = σx²` = variance de l'erreur sur X
-  - Si P[0][0] = 0.01 → écart-type σx = √0.01 = 0.1m
-  - L'erreur sur X est de ±10cm avec 68% de probabilité
-
-- `P[3][3] = σvx²` = variance de l'erreur sur vx
-  - Si P[3][3] = 0.1 → écart-type σvx = 0.316 m/s
-
-**Initialisation** :
-```cpp
-Vector diagonal = {0.01, 0.01, 0.01, 0.1, 0.1, 0.1};
-P = diag(diagonal);
-```
+Encode la physique : « si je connais ma position et ma vitesse, où serai-je 0.01s plus tard ? »
 
 ```
-P(0) = [0.01  0     0     0    0    0  ]  ← Incertitude position ±10cm
-       [0     0.01  0     0    0    0  ]
-       [0     0     0.01  0    0    0  ]
-       [0     0     0     0.1  0    0  ]  ← Incertitude vitesse ±0.3 m/s
-       [0     0     0     0    0.1  0  ]
-       [0     0     0     0    0    0.1]
+F = | 1  0  0  dt  0   0  |       position_new = position_old + vitesse × dt
+    | 0  1  0  0   dt  0  |       vitesse_new  = vitesse_old
+    | 0  0  1  0   0   dt |
+    | 0  0  0  1   0   0  |       dt = 0.01s (DELTA_T)
+    | 0  0  0  0   1   0  |
+    | 0  0  0  0   0   1  |
 ```
 
-**Évolution** :
+C'est une matrice identité avec des `dt` en haut à droite qui couplent la vitesse à la position.
 
-- **Prédiction** : P **augmente** (l'incertitude croît avec le temps)
+---
+
+### B — Matrice de contrôle (6×3)
+
+Traduit l'accélération mesurée en modification de l'état. Elle vient des formules de cinématique :
+- Δposition = ½ × a × dt²
+- Δvitesse = a × dt
+
+```
+B = | dt²/2    0      0    |      ← effet sur la position
+    |   0    dt²/2    0    |
+    |   0      0    dt²/2  |
+    |  dt      0      0    |      ← effet sur la vitesse
+    |   0     dt      0    |
+    |   0      0     dt    |
+```
+
+Avec dt = 0.01s : dt²/2 = 0.00005 (très petit — l'accélération change peu la position en 10ms, mais elle modifie la vitesse de façon notable).
+
+---
+
+### H — Matrice d'observation (3×6)
+
+Le GPS ne mesure **que la position**, pas la vitesse. Cette matrice extrait la position du vecteur d'état complet :
+
+```
+H = | 1  0  0  0  0  0 |
+    | 0  1  0  0  0  0 |
+    | 0  0  1  0  0  0 |
+```
+
+Quand on fait `H × x`, on obtient `[px, py, pz]` — exactement ce que le GPS mesure.
+
+---
+
+### P — Matrice de covariance d'état (6×6)
+
+Représente l'**incertitude** sur chaque composante de l'estimation.  
+Les valeurs sur la diagonale sont les variances (l'écart-type au carré).
+
+- **À la prédiction** : P **augmente** (on est moins sûr car le modèle n'est pas parfait)
   ```
-  P(k|k-1) = F × P × Fᵀ + Q
+  P = F × P × Fᵀ + Q
+  ```
+- **À la correction GPS** : P **diminue** (une nouvelle mesure réduit l'incertitude)
+  ```
+  P = (I − K×H) × P
   ```
 
-- **Mise à jour GPS** : P **diminue** (la mesure réduit l'incertitude)
-  ```
-  P(k|k) = (I - K×H) × P
-  ```
+Analogie : vous marchez les yeux fermés → votre incertitude sur votre position augmente à chaque pas. Vous ouvrez brièvement les yeux → vous savez mieux où vous êtes.
 
-**Analogie** :
-
-Imaginez marcher les yeux fermés :
-- Plus vous marchez, plus vous êtes incertain de votre position → **P augmente**
-- Vous ouvrez les yeux (GPS) → vous savez où vous êtes → **P diminue**
+**Initialisation dans le code** ([KalmanFilter.cpp](src/KalmanFilter.cpp)) :  
+Diagonale avec σ²_GPS pour la position et (σ²_gyro + σ²_acc × dt) pour la vitesse.
 
 ---
 
-### 6️⃣ Matrice de Bruit du Processus (Q) - 6×6
+### Q — Matrice de bruit de processus (6×6)
 
-**Rôle** : Modélise l'incertitude introduite par le **bruit de l'accéléromètre**.
+Modélise l'incertitude ajoutée **à chaque prédiction** à cause du bruit des capteurs.
 
-**Calcul** :
+On la calcule via la matrice de propagation G :
 ```
-Q = G × Gᵀ × σ_acc²
-```
+G = | (dt²/2) × I₃ |       ← comment le bruit d'accélération affecte la position
+    |    dt   × I₃ |       ← comment il affecte la vitesse
 
-Où G est la matrice de propagation du bruit :
-```
-G = [Δt²/2 × I₃]
-    [Δt    × I₃]
+Q = G × Gᵀ × (σ²_acc + σ²_gyro)
 ```
 
-**Code** :
-```cpp
-void KalmanFilter::initProcessNoiseMatrix(void) {
-    Matrix G = propagationMatrix();
-    this->Q = multiply(G, transpose(G));
-    this->Q = matrixScalar(this->Q, ACCELEROMETER_NOISE * ACCELEROMETER_NOISE);
-    // σ² = (10⁻³)² = 10⁻⁶
-}
-```
-
-**Signification physique** :
-
-Plus l'accéléromètre est bruité (grand σ_acc) :
-- Plus Q est grande
-- Plus l'incertitude augmente lors de la prédiction
-- Plus le filtre fera confiance au GPS lors de la mise à jour
-
-**Ordre de grandeur** :
-
-Avec σ_acc = 10⁻³ et Δt = 0.01s :
-```
-Q ≈ 10⁻⁶ × [...] → très petit
-```
-
-L'accéléromètre introduit très peu d'incertitude (c'est le capteur le plus précis).
+Plus Q est grand → le filtre considère sa prédiction comme moins fiable → il fera davantage confiance au GPS quand celui-ci arrivera.
 
 ---
 
-### 7️⃣ Matrice de Bruit de Mesure (R) - 3×3
+### R — Matrice de bruit de mesure (3×3)
 
-**Rôle** : Quantifie le **bruit du GPS**.
+Quantifie le bruit du GPS. Comme le bruit est le même sur les 3 axes :
 
-**Matrice** :
 ```
-R = [σ_GPS²   0        0      ]
-    [0        σ_GPS²   0      ]
-    [0        0        σ_GPS² ]
-
-  = [0.01  0     0   ]
-    [0     0.01  0   ]
-    [0     0     0.01]
-```
-
-**Avec** : σ_GPS = 10⁻¹ = 0.1m
-
-**Code** :
-```cpp
-void KalmanFilter::initUncertaintyMatrix(void) {
-    this->R = matrixScalar(identityMatrix(3), GPS_NOISE * GPS_NOISE);
-}
-```
-
-**Interprétation** :
-
-- R[0][0] = 0.01 = variance du bruit GPS en X
-- √0.01 = 0.1m → le GPS a une précision de ±10cm
-
-**Impact sur le filtre** :
-
-- R **grand** → GPS peu fiable → le filtre lui fait **moins confiance**
-- R **petit** → GPS précis → le filtre lui fait **plus confiance**
-
----
-
-### 8️⃣ Gain de Kalman (K) - 6×3
-
-**Rôle** : Détermine le **poids optimal** entre prédiction et mesure GPS.
-
-**Formule** :
-```
-K = P(k|k-1) × Hᵀ × [H × P(k|k-1) × Hᵀ + R]⁻¹
-```
-
-**Interprétation** :
-
-**Si K ≈ 0 (petit)** :
-```
-x = x_pred + 0 × innovation
-  ≈ x_pred
-```
-→ On **ignore le GPS**, on garde la prédiction
-
-**Si K ≈ I (grand)** :
-```
-x = x_pred + I × [z_GPS - x_pred]
-  ≈ z_GPS
-```
-→ On **fait totalement confiance au GPS**
-
-**Calcul dans le code** :
-```cpp
-void KalmanFilter::update(const Vector& gps_measurement) {
-    // Innovation
-    Vector y = z_GPS - H×x_pred;
-    
-    // Covariance de l'innovation
-    Matrix S = H×P×Hᵀ + R;
-    
-    // Gain de Kalman
-    Matrix K = P×Hᵀ×S⁻¹;
-    
-    // Mise à jour
-    x = x_pred + K×y;
-    P = (I - K×H)×P;
-}
-```
-
-**Exemple numérique** :
-
-**Situation 1** : Prédiction incertaine
-```
-P = grande matrice (grosse incertitude)
-R = petite (GPS précis)
-→ K ≈ 1 → on corrige beaucoup
-```
-
-**Situation 2** : Prédiction certaine
-```
-P = petite matrice (bonne estimation)
-R = grande (GPS bruité)
-→ K ≈ 0 → on ignore le GPS
+R = σ²_GPS × I₃ = | 0.01   0     0   |
+                   |  0    0.01   0   |     σ_GPS = 0.1m
+                   |  0     0    0.01 |
 ```
 
 ---
 
-### 9️⃣ Vecteur d'Innovation (y) - 3×1
+### K — Gain de Kalman (6×3)
 
-**Rôle** : Mesure l'**écart** entre ce que le GPS observe et ce qu'on prédisait.
+Calculé dynamiquement à chaque correction GPS. C'est le **cœur du filtre** : il détermine de combien on corrige la prédiction.
 
-**Formule** :
 ```
-y = z_GPS - H × x_pred
-```
-
-**Exemple** :
-```
-GPS mesure     : z = [100.2, -50.1, 30.0]
-On prédisait   : H×x = [100.0, -50.0, 30.0]
-Innovation     : y = [0.2, -0.1, 0.0]
+S = H × P × Hᵀ + R          (incertitude totale)
+K = P × Hᵀ × S⁻¹            (gain optimal)
 ```
 
-**Interprétation** :
-- Le GPS dit qu'on est **20cm trop à droite** en X
-- **10cm trop en avant** en Y
-- Parfait en Z
+- Si P est grand (prédiction incertaine) et R petit (GPS précis) → K ≈ 1 → on suit le GPS
+- Si P est petit (prédiction sûre) et R grand (GPS bruité) → K ≈ 0 → on ignore le GPS
 
-Le filtre va corriger proportionnellement à cette innovation, pondérée par K.
+Le filtre calcule **automatiquement** le meilleur compromis.
 
 ---
 
-### 🔟 Matrice de Covariance de l'Innovation (S) - 3×3
-
-**Rôle** : Variance de l'innovation = **incertitude totale**.
-
-**Formule** :
-```
-S = H × P × Hᵀ + R
-  = [incertitude prédiction] + [incertitude GPS]
-```
-
-**Utilisation** :
-
-Sert à calculer le gain de Kalman :
-```
-K = P×Hᵀ × S⁻¹
-```
-
-S normalise l'innovation pour tenir compte de toutes les sources d'incertitude.
-
----
-
-## 🔄 Algorithme Complet
-
-### Pseudo-Code Simplifié
-
-```
-1. INITIALISATION
-   ├─ Recevoir position initiale (x₀, y₀, z₀)
-   ├─ Recevoir vitesse initiale (vx₀, vy₀, vz₀)
-   ├─ Créer vecteur d'état : x = [x₀, y₀, z₀, vx₀, vy₀, vz₀]
-   ├─ Initialiser P (incertitude initiale)
-   ├─ Initialiser Q (bruit accéléromètre)
-   ├─ Initialiser R (bruit GPS)
-   ├─ Initialiser F, B, H (matrices du système)
-   └─ Envoyer première estimation
-
-2. BOUCLE PRINCIPALE (toutes les 0.01s)
-   
-   ┌──────────────────────────────────────┐
-   │ PHASE 1 : PRÉDICTION (toujours)     │
-   ├──────────────────────────────────────┤
-   │ a) Recevoir accélération u          │
-   │ b) x_pred = F×x + B×u               │
-   │ c) P_pred = F×P×Fᵀ + Q              │
-   │ d) Envoyer estimation [x,y,z]       │
-   └──────────────────────────────────────┘
-   
-   ┌──────────────────────────────────────┐
-   │ PHASE 2 : MISE À JOUR (si GPS)      │
-   ├──────────────────────────────────────┤
-   │ a) Recevoir position GPS z          │
-   │ b) y = z - H×x_pred                 │
-   │ c) S = H×P×Hᵀ + R                   │
-   │ d) K = P×Hᵀ×S⁻¹                     │
-   │ e) x = x_pred + K×y                 │
-   │ f) P = (I - K×H)×P                  │
-   └──────────────────────────────────────┘
-   
-   ┌──────────────────────────────────────┐
-   │ VÉRIFICATION                         │
-   ├──────────────────────────────────────┤
-   │ Erreur = distance(estimation, vrai) │
-   │ Si erreur > 5m → ARRÊT              │
-   └──────────────────────────────────────┘
-
-3. FIN (quand MSG_END reçu)
-```
-
-### Flux de Données Détaillé
-
-```
-ENTRÉES :
-  Accéléromètre : u (3×1) toutes les 0.01s
-  GPS           : z (3×1) toutes les 3s
-  
-PRÉDICTION (100 Hz) :
-  u (3×1) ──→ B (6×3) ──→ B×u (6×1) ─┐
-                                      ├─→ x_pred = F×x + B×u
-  x (6×1) ──→ F (6×6) ──→ F×x (6×1) ─┘
-  
-  P (6×6) ──→ F×P×Fᵀ + Q ──→ P_pred (6×6)
-  
-MISE À JOUR (0.33 Hz) :
-  z_GPS (3×1), x_pred (6×1) ──→ y = z - H×x_pred (3×1)
-  P, H, R ──→ S = H×P×Hᵀ + R (3×3)
-  P, H, S⁻¹ ──→ K = P×Hᵀ×S⁻¹ (6×3)
-  K×y + x_pred ──→ x_new (6×1)
-  (I - K×H)×P ──→ P_new (6×6)
-  
-SORTIE :
-  Estimation position : [x, y, z] toutes les 0.01s
-```
-
----
-
-## 🏗️ Architecture du Code
-
-### Structure des Fichiers
+## Architecture du code
 
 ```
 ft_kalman/
 ├── inc/
-│   ├── Client.hpp          → Communication UDP avec le serveur
-│   ├── Parser.hpp          → Parsing des messages reçus
-│   ├── KalmanFilter.hpp    → Implémentation du filtre
-│   └── maths.hpp           → Opérations matricielles
+│   ├── Client.hpp          # Communication UDP
+│   ├── Parser.hpp          # Parsing des messages serveur
+│   ├── KalmanFilter.hpp    # Filtre de Kalman (matrices et algorithme)
+│   └── maths.hpp           # Opérations matricielles (types, fonctions)
 ├── src/
-│   ├── Client.cpp
-│   ├── Parser.cpp
-│   ├── KalmanFilter.cpp
-│   ├── maths.cpp
-│   └── main.cpp            → Boucle principale
+│   ├── main.cpp            # Boucle principale : init → prédiction → correction
+│   ├── Client.cpp          # Socket UDP, envoi/réception
+│   ├── Parser.cpp          # Décodage des messages, état initial
+│   ├── KalmanFilter.cpp    # Prédiction, mise à jour, init des matrices
+│   └── maths.cpp           # Multiplication, inversion, rotation, etc.
 ├── tests/
-│   └── plot_logs.py        → Visualisation des résultats
+│   └── plot_logs.py        # Script Python pour visualiser les logs
 ├── Makefile
 └── README.md
 ```
 
-### Classes Principales
+### Client (Client.hpp / Client.cpp)
 
-#### 1. **KalmanFilter**
+Communique avec le serveur IMU via **UDP** sur le port 4242 (localhost).
 
-```cpp
-class KalmanFilter {
-private:
-    Vector _stateVector;     // x (6×1)
-    Vector _acceleration;    // u (3×1)
-    Matrix P;                // Covariance (6×6)
-    Matrix Q;                // Bruit processus (6×6)
-    Matrix R;                // Bruit mesure (3×3)
-    Matrix F;                // Transition (6×6)
-    Matrix B;                // Contrôle (6×3)
-    Matrix H;                // Observation (3×6)
-    
-public:
-    void predictStateVector();           // Phase 1
-    void update(const Vector& gps);      // Phase 2
-    void initCovarianceMatrix();         // Initialisation P
-    void initProcessNoiseMatrix();       // Initialisation Q
-    void initStateTransitionMatrix();    // Initialisation F
-    // ...
-};
+- `init()` : crée le socket, envoie `"READY"` pour déclencher la trajectoire
+- `receive_first_message()` : reçoit le message initial (les 3 premiers paquets sont des en-têtes, on les saute)
+- `receive()` : reçoit les données de mesure en boucle (le premier paquet `MSG_START` est sauté)
+- `sendEstimation()` : envoie l'estimation au format `"X Y Z"` avec 15 décimales
+
+### Parser (Parser.hpp / Parser.cpp)
+
+Décode les messages texte du serveur en données exploitables.
+
+Format du serveur :
+```
+[HH:MM:SS.mmm]LABEL
+valeur1
+valeur2
+valeur3
+MSG_END
 ```
 
-#### 2. **Client**
+- `parseMessage()` : transforme le texte en `map<string, vector<double>>`  
+  Les espaces dans les labels sont remplacés par `_` (ex: `TRUE POSITION` → `TRUE_POSITION`)
+- `createInitialState()` : construit le vecteur d'état initial [px, py, pz, vx, vy, vz]
+  - La vitesse (scalaire en km/h) est convertie en m/s et décomposée dans le repère monde via la matrice de rotation construite à partir de `DIRECTION`
 
-Gère la communication UDP avec le serveur :
-```cpp
-class Client {
-public:
-    void init();                                  // Connexion
-    void receive();                               // Recevoir mesures
-    void sendEstimation(const Vector& est);       // Envoyer estimation
-};
+### KalmanFilter (KalmanFilter.hpp / KalmanFilter.cpp)
+
+Implémente le filtre de Kalman linéaire en 3D.
+
+**Constantes** (définies dans le header) :
+- `ACCELEROMETER_NOISE` = 10⁻³
+- `GYROSCOPE_NOISE` = 10⁻²
+- `GPS_NOISE` = 10⁻¹
+- `DELTA_T` = 0.01s
+
+**Méthodes principales** :
+- `predictStateVector()` : x = F×x + B×u, puis P = F×P×Fᵀ + Q
+- `update(gps)` : calcule innovation, gain K, corrige x et P
+
+### maths (maths.hpp / maths.cpp)
+
+Bibliothèque matricielle maison. Types : `Matrix` = `vector<vector<double>>`, `Vector` = `vector<double>`.
+
+Fonctions : multiplication, transposée, addition, scalaire, identité, diagonale, fusion verticale, inversion (2×2, 3×3, 4×4), et les 3 matrices de rotation (Rx, Ry, Rz).
+
+### main.cpp — Boucle principale
+
+```
+1. Créer socket UDP, envoyer "READY"
+2. Recevoir données initiales (TRUE_POSITION, SPEED, ACCELERATION, DIRECTION)
+3. Construire l'état initial et initialiser toutes les matrices
+4. Envoyer la première estimation (= position initiale)
+5. Boucle :
+   a. Recevoir les nouvelles mesures
+   b. Mettre à jour l'accélération (déjà en repère monde)
+   c. PRÉDIRE → x = F×x + B×u
+   d. Si GPS disponible → CORRIGER → x = x + K×(z - H×x)
+   e. Envoyer l'estimation [x, y, z]
+   f. Logger dans logs.txt
 ```
 
-#### 3. **Parser**
-
-Parse les messages du serveur :
-```cpp
-class Parser {
-public:
-    map<string, vector<double>> parseMessage(const string& msg);
-    vector<double> createInitialState(map<...> data);
-};
-```
-
-### Boucle Principale (main.cpp)
-
-```cpp
-int main() {
-    // 1. Initialisation
-    Client client;
-    KalmanFilter kalman;
-    client.init();
-    
-    // 2. Recevoir données initiales
-    auto data = parser.parseMessage(client.getBuffer());
-    kalman.setStateVector(parser.createInitialState(data));
-    kalman.setAcceleration(data["ACCELERATION"]);
-    
-    // 3. Initialiser matrices
-    kalman.initProcessNoiseMatrix();
-    kalman.initCovarianceMatrix();
-    kalman.initMeasurementMatrix();
-    kalman.initStateTransitionMatrix();
-    kalman.initControlMatrix();
-    kalman.initUncertaintyMatrix();
-    
-    // 4. Envoyer première estimation
-    client.sendEstimation(estimation);
-    
-    // 5. Boucle principale
-    while (true) {
-        // Recevoir nouvelles données
-        client.receive();
-        auto data = parser.parseMessage(client.getBuffer());
-        
-        // Mettre à jour accélération
-        if (data.count("ACCELERATION"))
-            kalman.setAcceleration(data["ACCELERATION"]);
-        
-        // PRÉDICTION
-        kalman.predictStateVector();
-        
-        // MISE À JOUR (si GPS disponible)
-        if (data.count("POSITION"))
-            kalman.update(data["POSITION"]);
-        
-        // Envoyer estimation
-        Vector state = kalman.getStateVector();
-        Vector estimation = {state[0], state[1], state[2]};
-        client.sendEstimation(estimation);
-        
-        // Vérifier erreur
-        if (data.count("TRUE_POSITION")) {
-            double error = calculateDistance(estimation, data["TRUE_POSITION"]);
-            if (error > 5.0) break;  // ÉCHEC
-        }
-    }
-    
-    return 0;
-}
-```
+**Point clé** : les accélérations reçues du serveur sont **déjà dans le repère monde** (XYZ). Il n'y a pas besoin de les transformer avec la matrice de rotation. La rotation n'est utilisée qu'à l'initialisation pour décomposer le scalaire de vitesse en vecteur 3D.
 
 ---
 
-## 🛠️ Compilation et Utilisation
+## Compilation et utilisation
 
 ### Prérequis
 
-- **Compilateur C++** : g++ ou clang++ avec support C++17
-- **Make** : pour la compilation
-- **Python 3** (optionnel) : pour la visualisation
+- Compilateur C++ (g++ ou clang++) avec support C++11
+- Make
+- Python 3 avec matplotlib (optionnel, pour la visualisation)
 
-### Compilation
+### Compiler
 
 ```bash
-make
+make        # Compile
+make re     # Recompile tout
+make clean  # Supprime les .o
+make fclean # Supprime tout (binaire inclus)
 ```
 
-Compile avec les flags : `-Wall -Wextra -Werror -std=c++17`
+Flags de compilation : `-Wall -Wextra -Werror -std=c++11`
 
-### Utilisation
+### Lancer
 
-#### 1. Lancer le serveur IMU
-
+**Terminal 1** — Démarrer le serveur IMU :
 ```bash
-# Linux
-./imu-sensor-stream-linux -s 42 -d 42 -p 4242
-
 # macOS
-./imu-sensor-stream-macos -s 42 -d 42 -p 4242
+./imu-sensor-stream-macos -s 42
+
+# Linux
+./imu-sensor-stream-linux -s 42
+
+# Avec affichage du delta (écart entre estimation et réalité) :
+./imu-sensor-stream-macos -s 42 --delta
 ```
 
-Options :
-- `-s` : seed de génération de trajectoire
-- `-d` : seed de bruit
-- `-p` : port UDP (default 4242)
-
-#### 2. Lancer le client Kalman
-
+**Terminal 2** — Démarrer le client :
 ```bash
 ./KalmanClient
 ```
 
-#### 3. Visualiser les résultats (optionnel)
+Options utiles du serveur (`-h` pour tout voir) :
+- `-s <seed>` : graine pour la trajectoire (reproductible)
+- `-p <port>` : port UDP (défaut : 4242)
+- `--delta` : affiche l'écart entre estimation et position réelle
+
+### Visualiser les logs
 
 ```bash
 python3 tests/plot_logs.py
 ```
 
-Génère un graphique avec :
-- Position estimée vs position GPS
-- Évolution de l'erreur
-- Moments de mise à jour GPS
+Les logs sont écrits dans `logs.txt` à chaque pas de temps avec position estimée, vitesse, position GPS, etc.
 
 ---
 
-## 📈 Résultats et Performance
+## Protocole de communication UDP
 
-### Critères de Succès
-
-✅ **Erreur < 5m** en permanence  
-✅ **Temps de réponse < 1s** par estimation  
-✅ **Pas de crash** (segfault, memory leak)  
-✅ **Fonctionne jusqu'à 90 minutes** de trajectoire  
-
-### Exemple de Logs
+Le dialogue entre le client et le serveur suit ce protocole :
 
 ```
-t=0.00 POS_EST=1.732 VEL_X=5.000 POS_GPS=1.732 GPS=1
-t=0.01 POS_EST=1.782 VEL_X=5.020 POS_GPS=0.000 GPS=0
-t=0.02 POS_EST=1.832 VEL_X=5.040 POS_GPS=0.000 GPS=0
-...
-t=3.00 POS_EST=16.234 VEL_X=5.100 POS_GPS=16.180 GPS=1  ← Correction GPS
-t=3.01 POS_EST=16.185 VEL_X=5.102 POS_GPS=0.000 GPS=0   ← État corrigé
+Client                          Serveur (imu-sensor-stream)
+  |                                |
+  |──── "READY" ──────────────────>|   Déclenche la génération de trajectoire
+  |                                |
+  |<──── TRUE POSITION ───────────|   Position initiale vraie
+  |<──── SPEED ───────────────────|   Vitesse initiale (km/h)
+  |<──── ACCELERATION ────────────|   Accélération initiale
+  |<──── DIRECTION ───────────────|   Orientation initiale (Euler)
+  |<──── MSG_END ─────────────────|
+  |                                |
+  |──── "X Y Z" (estimation) ────>|   Première estimation
+  |                                |
+  |  ┌─── BOUCLE DE MESURES ────┐ |
+  |  │                          │ |
+  |<─┤── ACCELERATION ─────────┤─|   Toutes les 0.01s
+  |<─┤── DIRECTION ────────────┤─|   Toutes les 0.01s
+  |<─┤── POSITION (GPS) ───────┤─|   Toutes les ~3s (quand disponible)
+  |<─┤── MSG_END ──────────────┤─|
+  |  │                          │ |
+  |──┤── "X Y Z" (estimation) ─┤>|   Réponse attendue
+  |  │                          │ |
+  |  └──────────────────────────┘ |
+  |                                |
+  |<──── "Error: ..." ────────────|   Si delta > 5m ou timeout > 1s
 ```
 
-### Optimisations Possibles
-
-1. **Filtrage adaptatif** : Ajuster Q et R dynamiquement
-2. **Filtre de Kalman étendu (EKF)** : Pour des modèles non-linéaires
-3. **Prédiction multi-pas** : Anticiper plusieurs mesures
-4. **Détection d'outliers** : Rejeter les mesures GPS aberrantes
-
 ---
 
-## 📚 Ressources et Références
+## Points techniques importants
 
-### Théorie
+### Repères de coordonnées
 
-- **Livre de référence** : *"Kalman Filtering: Theory and Practice Using MATLAB"* - Grewal & Andrews
-- **Tutoriel interactif** : [Understanding the Kalman Filter](http://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/)
-- **Vidéo** : [Kalman Filter Explained Simply](https://www.youtube.com/watch?v=mwn8xhgNpFY)
+Le sujet indique : « Positions et accélérations sont données dans le repère XYZ ».  
+Cela signifie que les valeurs d'accélération reçues sont **déjà dans le repère monde**. Il ne faut **pas** les transformer avec la matrice de rotation (cela introduirait une erreur croissante).
 
-### Mathématiques
+L'orientation (`DIRECTION`) sert uniquement à :
+- Décomposer la vitesse initiale (un scalaire) en vecteur 3D dans le repère monde
+- Connaître dans quelle direction le véhicule pointe (non utilisé dans le filtre linéaire actuel)
 
-- **Algèbre linéaire** : Matrices, multiplication, inversion
-- **Probabilités** : Gaussiennes, variance, covariance
-- **Optimisation** : Moindres carrés, estimation au sens du maximum de vraisemblance
+### Matrices de rotation
 
-### Applications
+Les rotations Rx, Ry, Rz utilisent la convention **main droite** standard :
 
-- **Navigation GPS** : Fusion GPS + accéléromètre + gyroscope
-- **Véhicules autonomes** : Localisation précise
-- **Robotique** : SLAM (Simultaneous Localization And Mapping)
-- **Finance** : Prédiction de prix
+$$R_x(\phi) = \begin{pmatrix} 1 & 0 & 0 \\ 0 & \cos\phi & -\sin\phi \\ 0 & \sin\phi & \cos\phi \end{pmatrix}$$
 
----
+$$R_y(\theta) = \begin{pmatrix} \cos\theta & 0 & \sin\theta \\ 0 & 1 & 0 \\ -\sin\theta & 0 & \cos\theta \end{pmatrix}$$
 
-## ❓ FAQ
+$$R_z(\psi) = \begin{pmatrix} \cos\psi & -\sin\psi & 0 \\ \sin\psi & \cos\psi & 0 \\ 0 & 0 & 1 \end{pmatrix}$$
 
-### Pourquoi le GPS est-il si bruité ?
-
-Le GPS a un bruit de **±10cm** (σ = 0.1m) car :
-- Réflexions des signaux satellites
-- Erreurs atmosphériques
-- Précision limitée du récepteur
+Composition : R = Rz × Ry × Rx (convention extrinsèque, appliquée dans cet ordre).
 
 ### Pourquoi ne pas utiliser uniquement le GPS ?
 
-Le GPS arrive seulement **toutes les 3 secondes**. Entre deux mesures GPS, le véhicule parcourt une distance significative (ex: 15 m/s × 3s = 45m). L'accéléromètre permet de prédire la position entre deux GPS.
+Le GPS n'arrive que toutes les 3 secondes. À ~60 km/h, le véhicule parcourt ~50m entre deux mesures GPS. L'accéléromètre comble ce vide en prédisant la position 300 fois entre chaque GPS.
 
 ### Pourquoi ne pas utiliser uniquement l'accéléromètre ?
 
-L'accéléromètre a un bruit faible mais **s'accumule dans le temps** :
-- Erreur sur accélération → erreur sur vitesse (intégration)
-- Erreur sur vitesse → erreur sur position (double intégration)
-- Au bout de 3s, l'erreur peut devenir importante
+Le bruit de l'accéléromètre, même faible (σ = 10⁻³), **s'accumule** :
+- Erreur d'accélération → erreur de vitesse (première intégration)
+- Erreur de vitesse → erreur de position (deuxième intégration)
 
-Le GPS permet de **recalibrer régulièrement** l'estimation.
-
-### Qu'est-ce qu'un bruit blanc gaussien ?
-
-Un bruit :
-- **Blanc** : décorrélé dans le temps (le bruit à t=0 est indépendant du bruit à t=1)
-- **Gaussien** : suit une loi normale N(υ, σ²)
-  - υ = 0 : moyenne nulle
-  - σ : écart-type (10⁻³ pour l'accéléromètre, 10⁻¹ pour le GPS)
-
-### Pourquoi P diminue-t-il lors de la mise à jour ?
-
-Quand on reçoit une nouvelle mesure GPS, on **ajoute de l'information** au système. Plus on a d'information, moins on est incertain → P diminue.
-
-### Que se passe-t-il si l'erreur dépasse 5m ?
-
-Le programme s'arrête avec un message d'erreur. Cela signifie que le filtre a divergé, probablement à cause de :
-- Mauvaise initialisation des matrices
-- Erreur dans les calculs matriciels
-- Bug dans le code
+Sans GPS pour recaler, l'erreur de position diverge quadratiquement avec le temps.
 
 ---
 
-## 🎓 Conclusion
+## Ressources
 
-Le filtre de Kalman est un outil **puissant et élégant** qui combine :
-- **Physique** (lois de la cinématique)
-- **Mathématiques** (algèbre linéaire, probabilités)
-- **Informatique** (implémentation efficace)
-
-Il résout un problème fondamental : **estimer optimalement un état caché à partir de mesures bruitées**.
+- [How a Kalman Filter works, in pictures](http://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/) — excellent tutoriel visuel
+- [Kalman Filter Explained Simply](https://www.youtube.com/watch?v=mwn8xhgNpFY) — vidéo didactique
+- *Kalman Filtering: Theory and Practice Using MATLAB* — Grewal & Andrews (référence académique)
