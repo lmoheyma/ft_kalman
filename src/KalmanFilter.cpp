@@ -109,14 +109,15 @@ Matrix KalmanFilter::propagationMatrix(void) {
 void KalmanFilter::initProcessNoiseMatrix(void) {
     Matrix G = propagationMatrix();
     Matrix GTransposed = transpose(G);
- 
+
+    // Process noise accounts for accelerometer noise and model uncertainty
+    // from gyroscope noise affecting acceleration direction
     double acc_variance = ACCELEROMETER_NOISE * ACCELEROMETER_NOISE;
     double gyro_variance = GYROSCOPE_NOISE * GYROSCOPE_NOISE;
-
-    double total_acc_variance = acc_variance + gyro_variance;
+    double total_variance = acc_variance + gyro_variance;
 
     this->Q = multiply(G, GTransposed);
-    this->Q = matrixScalar(this->Q, total_acc_variance);
+    this->Q = matrixScalar(this->Q, total_variance);
 }
 
 void KalmanFilter::initControlMatrix(void) {

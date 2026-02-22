@@ -47,24 +47,8 @@ int main() {
     
     KalmanFilter kalmanFilter;
     
-    // Transformer l'accélération initiale du repère véhicule vers repère global
+    // L'accélération est déjà dans le repère XYZ (world frame) selon le sujet
     std::vector<double> initial_acc = parsed.at("ACCELERATION");
-    if (parsed.count("DIRECTION")) {
-        std::vector<double> direction = parsed.at("DIRECTION");
-        Matrix Rx(3, std::vector<double>(3, 0.0));
-        Matrix Ry(3, std::vector<double>(3, 0.0));
-        Matrix Rz(3, std::vector<double>(3, 0.0));
-        setRotationX(Rx, direction[0]);
-        setRotationY(Ry, direction[1]);
-        setRotationZ(Rz, direction[2]);
-
-        Matrix R = multiply(Rz, Ry);
-        R = multiply(R, Rx);
-        initial_acc = multiplyMatrixVector(R, initial_acc);
-        std::cout << "Acceleration initiale (repère global) : ";
-        printVector(initial_acc);
-    }
-
     kalmanFilter.setAcceleration(initial_acc);
     kalmanFilter.setStateVector(parser.createInitialState(parsed));
     kalmanFilter.initProcessNoiseMatrix();
@@ -111,21 +95,8 @@ int main() {
             }
 
             if (data.count("ACCELERATION")) {
-                std::vector<double> acc_local = data["ACCELERATION"];
-                Matrix Rx(3, std::vector<double>(3, 0.0));
-                Matrix Ry(3, std::vector<double>(3, 0.0));
-                Matrix Rz(3, std::vector<double>(3, 0.0));
-
-                setRotationX(Rx, direction[0]);
-                setRotationY(Ry, direction[1]);
-                setRotationZ(Rz, direction[2]);
-
-                // conventional composition R = Rz * Ry * Rx
-                Matrix R = multiply(Rz, Ry);
-                R = multiply(R, Rx);
-                std::vector<double> acc_global = multiplyMatrixVector(R, acc_local);
-                printVector(acc_global);
-                kalmanFilter.setAcceleration(acc_global);
+                // L'accélération est déjà dans le repère XYZ (world frame)
+                kalmanFilter.setAcceleration(data["ACCELERATION"]);
             }
 
             kalmanFilter.predictStateVector();

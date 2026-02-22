@@ -16,16 +16,31 @@ std::vector<double> Parser::createInitialState(std::map<std::string, std::vector
         std::vector<double> position = data.at("TRUE_POSITION");
         std::vector<double> speed = data.at("SPEED");
 
-        speed[0] /= 3.6; // convert km/h to m/s
-        
-        // SPEED est principalement dans l'axe X du repère monde
-        // Le GPS corrigera les petites erreurs toutes les 3 secondes
-        speed.push_back(0.0);  // vy = 0
-        speed.push_back(0.0);  // vz = 0
+        double speed_ms = speed[0] / 3.6; // convert km/h to m/s
+
+        // Decompose scalar speed into world-frame velocity using initial orientation
+        // The vehicle moves along its longitudinal (body X) axis
+        std::vector<double> velocity(3, 0.0);
+        if (data.count("DIRECTION")) {
+            std::vector<double> direction = data.at("DIRECTION");
+            Matrix Rx(3, std::vector<double>(3, 0.0));
+            Matrix Ry(3, std::vector<double>(3, 0.0));
+            Matrix Rz(3, std::vector<double>(3, 0.0));
+            setRotationX(Rx, direction[0]);
+            setRotationY(Ry, direction[1]);
+            setRotationZ(Rz, direction[2]);
+            Matrix R = multiply(Rz, Ry);
+            R = multiply(R, Rx);
+            // body-frame velocity [speed, 0, 0] -> world frame
+            std::vector<double> body_vel = {speed_ms, 0.0, 0.0};
+            velocity = multiplyMatrixVector(R, body_vel);
+        } else {
+            velocity[0] = speed_ms;
+        }
 
         this->_initialState.insert(this->_initialState.begin(), position.begin(), position.end());
-        for (auto i : speed)
-            this->_initialState.push_back(i);
+        for (auto v : velocity)
+            this->_initialState.push_back(v);
         return this->_initialState;
     }
     catch(const std::out_of_range& e)

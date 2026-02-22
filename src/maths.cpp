@@ -8,15 +8,15 @@ Matrix setRotationX(Matrix& matrix, double phi) {
 }
 
 Matrix setRotationY(Matrix& matrix, double theta) {
-    matrix[0][0] = std::cos(theta);     matrix[0][1] = 0;   matrix[0][2] = -std::sin(theta);
+    matrix[0][0] = std::cos(theta);     matrix[0][1] = 0;   matrix[0][2] = std::sin(theta);
     matrix[1][0] = 0;                   matrix[1][1] = 1;   matrix[1][2] = 0;
-    matrix[2][0] = std::sin(theta);     matrix[2][1] = 0;   matrix[2][2] = std::cos(theta);
+    matrix[2][0] = -std::sin(theta);    matrix[2][1] = 0;   matrix[2][2] = std::cos(theta);
     return matrix;
 }
 
 Matrix setRotationZ(Matrix& matrix, double psi) {
-    matrix[0][0] = std::cos(psi);   matrix[0][1] = std::sin(psi);   matrix[0][2] = 0;
-    matrix[1][0] = -std::sin(psi);  matrix[1][1] = std::cos(psi);   matrix[1][2] = 0;
+    matrix[0][0] = std::cos(psi);   matrix[0][1] = -std::sin(psi);  matrix[0][2] = 0;
+    matrix[1][0] = std::sin(psi);   matrix[1][1] = std::cos(psi);   matrix[1][2] = 0;
     matrix[2][0] = 0;               matrix[2][1] = 0;               matrix[2][2] = 1;
     return matrix;
 }

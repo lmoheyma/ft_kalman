@@ -37,7 +37,7 @@ void Client::init(void)
     memset(&this->_servaddr, 0, sizeof(this->_servaddr)); 
     this->_servaddr.sin_family = AF_INET; 
     this->_servaddr.sin_port = htons(PORT); 
-    this->_servaddr.sin_addr.s_addr = INADDR_ANY;
+    this->_servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     sendto(this->_sockfd, (const char *)START_MSG, strlen(START_MSG), 
         0, (const struct sockaddr *) &this->_servaddr,  
