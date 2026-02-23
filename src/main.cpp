@@ -38,11 +38,6 @@ int main() {
     }
 
     std::map<std::string, std::vector<double> > parsed = parser.parseMessage(client.getBuffer());
-    
-    std::cout << "=== DONNÉES INITIALES REÇUES ===" << std::endl;
-    printData(parsed);
-    std::cout << "=================================" << std::endl;
-    
     KalmanFilter kalmanFilter;
     
     // L'accélération est déjà dans le repère XYZ (world frame) selon le sujet
@@ -56,13 +51,9 @@ int main() {
     kalmanFilter.initControlMatrix();
     kalmanFilter.initUncertaintyMatrix();
     // kalmanFilter.initObservationErrorCov();
-    std::cout << "Initial State : " << std::endl;
-    printVector(kalmanFilter.getStateVector());
 
     std::vector<double> state = kalmanFilter.getStateVector();
     std::vector<double> estimation = {state[0], state[1], state[2]};
-    std::cout << "Première estimation envoyée : " << std::endl;
-    printVector(estimation);
     client.sendEstimation(estimation);
 
     try {
