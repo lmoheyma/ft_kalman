@@ -37,14 +37,16 @@ void Client::init(void)
     memset(&this->_servaddr, 0, sizeof(this->_servaddr)); 
     this->_servaddr.sin_family = AF_INET; 
     this->_servaddr.sin_port = htons(PORT); 
-    this->_servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    this->_servaddr.sin_addr.s_addr = inet_addr(HOST);
+}
 
+void Client::sendFirstMessage(void) {
     sendto(this->_sockfd, (const char *)START_MSG, strlen(START_MSG), 
         0, (const struct sockaddr *) &this->_servaddr,  
             sizeof(this->_servaddr));
 }
 
-void Client::receive_first_message(void)
+void Client::receiveFirstMessage(void)
 {
     if (_index >= MAXLINE) {
         std::cerr << "buffer overflow" << std::endl;

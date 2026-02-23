@@ -12,6 +12,7 @@
 #include <netinet/in.h>
 #include <fstream>
 
+#define HOST "127.0.0.1"
 #define PORT 4242
 #define MAXLINE 1024
 #define START_MSG "READY"
@@ -31,6 +32,7 @@ class Client
         int getSockFd(void) const;
         void init(void);
         void receive(void);
-        void receive_first_message(void);
+        void receiveFirstMessage(void);
+        void sendFirstMessage(void);
         void sendEstimation(const std::vector<double>& estimation);
 };

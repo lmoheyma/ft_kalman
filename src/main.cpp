@@ -26,10 +26,12 @@ void printData(const std::map<std::string, std::vector<double>>& data) {
 int main() {
     Client client;
     Parser parser;
+
     client.init();
+    client.sendFirstMessage();
 
     while (true) {
-        client.receive_first_message();
+        client.receiveFirstMessage();
         if (client.getBuffer().find("MSG_END") != std::string::npos) {
             break;
         }
