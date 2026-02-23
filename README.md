@@ -6,20 +6,19 @@ Implémentation d'un **filtre de Kalman** en C++ pour estimer la position 3D d'u
 
 ## Table des Matières
 
-1. [C'est quoi ce projet ?](#cest-quoi-ce-projet-)
+1. [Description du projet](#description-du-projet)
 2. [Le problème en une image mentale](#le-problème-en-une-image-mentale)
 3. [Les capteurs disponibles](#les-capteurs-disponibles)
 4. [Comment fonctionne un filtre de Kalman](#comment-fonctionne-un-filtre-de-kalman)
 5. [Les matrices expliquées une par une](#les-matrices-expliquées-une-par-une)
-6. [Architecture du code](#architecture-du-code)
-7. [Compilation et utilisation](#compilation-et-utilisation)
-8. [Protocole de communication UDP](#protocole-de-communication-udp)
-9. [Points techniques importants](#points-techniques-importants)
-10. [Ressources](#ressources)
+6. [Compilation et utilisation](#compilation-et-utilisation)
+7. [Protocole de communication UDP](#protocole-de-communication-udp)
+8. [Points techniques importants](#points-techniques-importants)
+9. [Ressources](#ressources)
 
 ---
 
-## C'est quoi ce projet ?
+## Description du projet
 
 Un programme externe (le « serveur IMU ») simule un véhicule qui se déplace dans un espace 3D sans gravité ni air.  
 Ce véhicule possède des capteurs imparfaits : accéléromètre, gyroscope, GPS.  
@@ -44,11 +43,11 @@ Le filtre de Kalman, c'est votre cerveau : il combine les deux informations en p
 
 ## Les capteurs disponibles
 
-| Capteur | Ce qu'il mesure | Fréquence | Bruit (σ) | Repère |
-|---|---|---|---|---|
-| **Accéléromètre** | Accélération (ax, ay, az) en m/s² | 100 Hz (toutes les 0.01s) | σ = 10⁻³ | Repère monde (XYZ) |
-| **Gyroscope** | Orientation (angles d'Euler) | 100 Hz | σ = 10⁻² | Lien corps ↔ monde |
-| **GPS** | Position (x, y, z) en mètres | ~0.33 Hz (toutes les 3s) | σ = 10⁻¹ | Repère monde (XYZ) |
+| Capteur | Ce qu'il mesure | Fréquence | Bruit (σ) |
+|---|---|---|---|
+| **Accéléromètre** | Accélération (ax, ay, az) en m/s² | 100 Hz (toutes les 0.01s) | σ = 10⁻³ |
+| **Gyroscope** | Orientation (angles d'Euler) | 100 Hz | σ = 10⁻² |
+| **GPS** | Position (x, y, z) en mètres | ~0.33 Hz (toutes les 3s) | σ = 10⁻¹ |
 
 Le bruit est **gaussien** (courbe en cloche) centré sur 0 (moyenne μ = 0).  
 En clair : les erreurs sont aléatoires, symétriques, et le plus souvent petites.
@@ -257,101 +256,12 @@ Le filtre calcule **automatiquement** le meilleur compromis.
 
 ---
 
-## Architecture du code
-
-```
-ft_kalman/
-├── inc/
-│   ├── Client.hpp          # Communication UDP
-│   ├── Parser.hpp          # Parsing des messages serveur
-│   ├── KalmanFilter.hpp    # Filtre de Kalman (matrices et algorithme)
-│   └── maths.hpp           # Opérations matricielles (types, fonctions)
-├── src/
-│   ├── main.cpp            # Boucle principale : init → prédiction → correction
-│   ├── Client.cpp          # Socket UDP, envoi/réception
-│   ├── Parser.cpp          # Décodage des messages, état initial
-│   ├── KalmanFilter.cpp    # Prédiction, mise à jour, init des matrices
-│   └── maths.cpp           # Multiplication, inversion, rotation, etc.
-├── tests/
-│   └── plot_logs.py        # Script Python pour visualiser les logs
-├── Makefile
-└── README.md
-```
-
-### Client (Client.hpp / Client.cpp)
-
-Communique avec le serveur IMU via **UDP** sur le port 4242 (localhost).
-
-- `init()` : crée le socket, envoie `"READY"` pour déclencher la trajectoire
-- `receive_first_message()` : reçoit le message initial (les 3 premiers paquets sont des en-têtes, on les saute)
-- `receive()` : reçoit les données de mesure en boucle (le premier paquet `MSG_START` est sauté)
-- `sendEstimation()` : envoie l'estimation au format `"X Y Z"` avec 15 décimales
-
-### Parser (Parser.hpp / Parser.cpp)
-
-Décode les messages texte du serveur en données exploitables.
-
-Format du serveur :
-```
-[HH:MM:SS.mmm]LABEL
-valeur1
-valeur2
-valeur3
-MSG_END
-```
-
-- `parseMessage()` : transforme le texte en `map<string, vector<double>>`  
-  Les espaces dans les labels sont remplacés par `_` (ex: `TRUE POSITION` → `TRUE_POSITION`)
-- `createInitialState()` : construit le vecteur d'état initial [px, py, pz, vx, vy, vz]
-  - La vitesse (scalaire en km/h) est convertie en m/s et décomposée dans le repère monde via la matrice de rotation construite à partir de `DIRECTION`
-
-### KalmanFilter (KalmanFilter.hpp / KalmanFilter.cpp)
-
-Implémente le filtre de Kalman linéaire en 3D.
-
-**Constantes** (définies dans le header) :
-- `ACCELEROMETER_NOISE` = 10⁻³
-- `GYROSCOPE_NOISE` = 10⁻²
-- `GPS_NOISE` = 10⁻¹
-- `DELTA_T` = 0.01s
-
-**Méthodes principales** :
-- `predictStateVector()` : x = F×x + B×u, puis P = F×P×Fᵀ + Q
-- `update(gps)` : calcule innovation, gain K, corrige x et P
-
-### maths (maths.hpp / maths.cpp)
-
-Bibliothèque matricielle maison. Types : `Matrix` = `vector<vector<double>>`, `Vector` = `vector<double>`.
-
-Fonctions : multiplication, transposée, addition, scalaire, identité, diagonale, fusion verticale, inversion (2×2, 3×3, 4×4), et les 3 matrices de rotation (Rx, Ry, Rz).
-
-### main.cpp — Boucle principale
-
-```
-1. Créer socket UDP, envoyer "READY"
-2. Recevoir données initiales (TRUE_POSITION, SPEED, ACCELERATION, DIRECTION)
-3. Construire l'état initial et initialiser toutes les matrices
-4. Envoyer la première estimation (= position initiale)
-5. Boucle :
-   a. Recevoir les nouvelles mesures
-   b. Mettre à jour l'accélération (déjà en repère monde)
-   c. PRÉDIRE → x = F×x + B×u
-   d. Si GPS disponible → CORRIGER → x = x + K×(z - H×x)
-   e. Envoyer l'estimation [x, y, z]
-   f. Logger dans logs.txt
-```
-
-**Point clé** : les accélérations reçues du serveur sont **déjà dans le repère monde** (XYZ). Il n'y a pas besoin de les transformer avec la matrice de rotation. La rotation n'est utilisée qu'à l'initialisation pour décomposer le scalaire de vitesse en vecteur 3D.
-
----
-
 ## Compilation et utilisation
 
 ### Prérequis
 
 - Compilateur C++ (g++ ou clang++) avec support C++11
 - Make
-- Python 3 avec matplotlib (optionnel, pour la visualisation)
 
 ### Compiler
 
@@ -369,13 +279,13 @@ Flags de compilation : `-Wall -Wextra -Werror -std=c++11`
 **Terminal 1** — Démarrer le serveur IMU :
 ```bash
 # macOS
-./imu-sensor-stream-macos -s 42
+./imu-sensor-stream-macos
 
 # Linux
-./imu-sensor-stream-linux -s 42
+./imu-sensor-stream-linux
 
 # Avec affichage du delta (écart entre estimation et réalité) :
-./imu-sensor-stream-macos -s 42 --delta
+./imu-sensor-stream-macos  --delta
 ```
 
 **Terminal 2** — Démarrer le client :
@@ -387,14 +297,6 @@ Options utiles du serveur (`-h` pour tout voir) :
 - `-s <seed>` : graine pour la trajectoire (reproductible)
 - `-p <port>` : port UDP (défaut : 4242)
 - `--delta` : affiche l'écart entre estimation et position réelle
-
-### Visualiser les logs
-
-```bash
-python3 tests/plot_logs.py
-```
-
-Les logs sont écrits dans `logs.txt` à chaque pas de temps avec position estimée, vitesse, position GPS, etc.
 
 ---
 
@@ -432,15 +334,6 @@ Client                          Serveur (imu-sensor-stream)
 ---
 
 ## Points techniques importants
-
-### Repères de coordonnées
-
-Le sujet indique : « Positions et accélérations sont données dans le repère XYZ ».  
-Cela signifie que les valeurs d'accélération reçues sont **déjà dans le repère monde**. Il ne faut **pas** les transformer avec la matrice de rotation (cela introduirait une erreur croissante).
-
-L'orientation (`DIRECTION`) sert uniquement à :
-- Décomposer la vitesse initiale (un scalaire) en vecteur 3D dans le repère monde
-- Connaître dans quelle direction le véhicule pointe (non utilisé dans le filtre linéaire actuel)
 
 ### Matrices de rotation
 
