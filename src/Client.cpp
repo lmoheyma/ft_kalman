@@ -66,7 +66,6 @@ void Client::receiveFirstMessage(void)
     tmp[n] = '\0';
     if (_index > 2) { // Skip two first messages
         this->_buffer[_index] = std::string(tmp);
-        std::cout << "Reçu (" << _index << ") : " << this->_buffer[_index] << std::endl;
     }
     _index++;
 }
@@ -91,7 +90,6 @@ void Client::receive(void)
     tmp[n] = '\0';
     if (_index >= 1) { // Skip MSG_START
         this->_buffer[_index] = std::string(tmp);
-        std::cout << "Reçu (" << _index << ") : " << this->_buffer[_index] << std::endl;
     }
     _index++;
 }
@@ -106,5 +104,4 @@ void Client::sendEstimation(const std::vector<double>& estimation) {
     sendto(this->_sockfd, (const char *)buffer, strlen(buffer), 
         0, (const struct sockaddr *) &this->_servaddr,  
             sizeof(this->_servaddr));
-    std::cout << "Estimation envoyée : " << buffer << std::endl;
 }

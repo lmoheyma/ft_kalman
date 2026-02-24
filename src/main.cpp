@@ -1,25 +1,32 @@
 #include "../inc/Client.hpp"
 #include "../inc/Parser.hpp"
 #include "../inc/KalmanFilter.hpp"
+#include "../inc/colors.hpp"
 #include <thread>
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 
 
-double calculateDistance(const std::vector<double>& pos1, const std::vector<double>& pos2) {
-    double dx = pos1[0] - pos2[0];
-    double dy = pos1[1] - pos2[1];
-    double dz = pos1[2] - pos2[2];
-    return std::sqrt(dx*dx + dy*dy + dz*dz);
-}
-
-void printData(const std::map<std::string, std::vector<double>>& data) {
-    for (const auto& pair : data) {
-        std::cout << pair.first << " : ";
-        for (double val : pair.second) {
-            std::cout << val << " ";
-        }
-        std::cout << std::endl;
+void printEstimation(const std::vector<double>& estimation, double t, bool gps_update) {
+    std::cout << std::fixed << std::setprecision(4);
+    if (gps_update) {
+        std::cout << "\033[2K\r" << GREEN << BOLD
+                  << "[UPDATE] "
+                  << RESET << GREEN
+                  << "t=" << std::setw(8) << t << "s"
+                  << "  x=" << std::setw(11) << estimation[0]
+                  << "  y=" << std::setw(11) << estimation[1]
+                  << "  z=" << std::setw(11) << estimation[2]
+                  << RESET << std::endl;
+    } else {
+        std::cout << CYAN
+                  << "[PREDICT] "
+                  << "t=" << std::setw(8) << t << "s"
+                  << "  x=" << std::setw(11) << estimation[0]
+                  << "  y=" << std::setw(11) << estimation[1]
+                  << "  z=" << std::setw(11) << estimation[2]
+                  << RESET << "\r" << std::flush;
     }
 }
 
@@ -55,8 +62,11 @@ int main() {
     std::vector<double> state = kalmanFilter.getStateVector();
     std::vector<double> estimation = {state[0], state[1], state[2]};
     client.sendEstimation(estimation);
+    std::cout << BOLD << "ft_kalman started" << RESET << " — " << CYAN << "PREDICT" << RESET << " / " << GREEN << BOLD << "UPDATE (GPS)" << RESET << std::endl;
+    std::cout << std::string(72, '-') << std::endl;
 
     try {
+        double current_time = 0.0;
         std::vector<double> direction(3, 0.0);
         if (parsed.count("DIRECTION")) {
             direction = parsed["DIRECTION"];
@@ -87,14 +97,19 @@ int main() {
             std::vector<double> state = kalmanFilter.getStateVector();
             std::vector<double> estimation = {state[0], state[1], state[2]};
 
+            bool gps_update = false;
             // Mettre à jour avec POSITION
             if (data.count("POSITION")) {
                 kalmanFilter.update(data["POSITION"]);
                 // Recalculer l'état après la mise à jour
                 state = kalmanFilter.getStateVector();
                 estimation = {state[0], state[1], state[2]};
+                gps_update = true;
             }
             client.sendEstimation(estimation);
+            printEstimation(estimation, current_time, gps_update);
+
+            current_time += DELTA_T;
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     } catch (const std::exception& e) {
