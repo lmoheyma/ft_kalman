@@ -1,4 +1,5 @@
 #include "../inc/Client.hpp"
+#include "../inc/colors.hpp"
 
 Client::Client() : _index(0)
 {
@@ -86,6 +87,10 @@ void Client::receive(void)
     if (n < 0) {
         perror("recvfrom failed");
         return;
+    }
+    if (std::string(tmp).find("GOODBYE.") != std::string::npos) {
+        std::cout << "\033[2K\r" << BOLD << MAGENTA << "Received GOODBYE message from server" << RESET << std::endl;;
+        exit(0);
     }
     tmp[n] = '\0';
     if (_index >= 1) { // Skip MSG_START
