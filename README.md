@@ -101,6 +101,8 @@ Après correction, l'incertitude **diminue** : en combinant deux sources d'infor
                          ← ← ← ← ← (+ Correction si GPS) ← ← ←
 ```
 
+![Kalman Filter Information Flow](assets/kalman_flow.png)
+
 ---
 
 ## Les matrices expliquées une par une
