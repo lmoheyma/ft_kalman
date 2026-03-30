@@ -113,7 +113,8 @@ int main() {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     } catch (const std::exception& e) {
-        std::cerr << "Exception : " << e.what() << std::endl;
+        if (std::string(e.what()) != "GOODBYE")
+            std::cerr << "Exception : " << e.what() << std::endl;
     } catch (...) {
         std::cerr << "Exception inconnue" << std::endl;
     }

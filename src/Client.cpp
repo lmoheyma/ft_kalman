@@ -89,8 +89,8 @@ void Client::receive(void)
         return;
     }
     if (std::string(tmp).find("GOODBYE.") != std::string::npos) {
-        std::cout << "\033[2K\r" << BOLD << MAGENTA << "Received GOODBYE message from server" << RESET << std::endl;;
-        exit(0);
+        std::cout << "\033[2K\r" << BOLD << MAGENTA << "Received GOODBYE message from server" << RESET << std::endl;
+        throw std::runtime_error("GOODBYE");
     }
     tmp[n] = '\0';
     if (_index >= 1) { // Skip MSG_START
