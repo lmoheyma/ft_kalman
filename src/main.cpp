@@ -31,41 +31,40 @@ void printEstimation(const std::vector<double>& estimation, double t, bool gps_u
 }
 
 int main() {
-    Client client;
-    Parser parser;
-
-    client.init();
-    client.sendFirstMessage();
-
-    while (true) {
-        client.receiveFirstMessage();
-        if (client.getBuffer().find("MSG_END") != std::string::npos) {
-            break;
-        }
-    }
-
-    std::map<std::string, std::vector<double> > parsed = parser.parseMessage(client.getBuffer());
-    KalmanFilter kalmanFilter;
-    
-    // L'accélération est déjà dans le repère XYZ (world frame) selon le sujet
-    std::vector<double> initial_acc = parsed.at("ACCELERATION");
-    kalmanFilter.setAcceleration(initial_acc);
-    kalmanFilter.setStateVector(parser.createInitialState(parsed));
-    kalmanFilter.initProcessNoiseMatrix();
-    kalmanFilter.initCovarianceMatrix();
-    kalmanFilter.initMeasurementMatrix();
-    kalmanFilter.initStateTransitionMatrix();
-    kalmanFilter.initControlMatrix();
-    kalmanFilter.initUncertaintyMatrix();
-    // kalmanFilter.initObservationErrorCov();
-
-    std::vector<double> state = kalmanFilter.getStateVector();
-    std::vector<double> estimation = {state[0], state[1], state[2]};
-    client.sendEstimation(estimation);
-    std::cout << BOLD << "ft_kalman started" << RESET << " — " << CYAN << "PREDICT" << RESET << " / " << GREEN << BOLD << "UPDATE (GPS)" << RESET << std::endl;
-    std::cout << std::string(72, '-') << std::endl;
-
     try {
+        Client client;
+        Parser parser;
+
+        client.init();
+        client.sendFirstMessage();
+
+        while (true) {
+            client.receiveFirstMessage();
+            if (client.getBuffer().find("MSG_END") != std::string::npos) {
+                break;
+            }
+        }
+
+        std::map<std::string, std::vector<double> > parsed = parser.parseMessage(client.getBuffer());
+        KalmanFilter kalmanFilter;
+
+        // L'accélération est déjà dans le repère XYZ (world frame) selon le sujet
+        std::vector<double> initial_acc = parsed.at("ACCELERATION");
+        kalmanFilter.setAcceleration(initial_acc);
+        kalmanFilter.setStateVector(parser.createInitialState(parsed));
+        kalmanFilter.initProcessNoiseMatrix();
+        kalmanFilter.initCovarianceMatrix();
+        kalmanFilter.initMeasurementMatrix();
+        kalmanFilter.initStateTransitionMatrix();
+        kalmanFilter.initControlMatrix();
+        kalmanFilter.initUncertaintyMatrix();
+
+        std::vector<double> state = kalmanFilter.getStateVector();
+        std::vector<double> estimation = {state[0], state[1], state[2]};
+        client.sendEstimation(estimation);
+        std::cout << BOLD << "ft_kalman started" << RESET << " — " << CYAN << "PREDICT" << RESET << " / " << GREEN << BOLD << "UPDATE (GPS)" << RESET << std::endl;
+        std::cout << std::string(72, '-') << std::endl;
+
         double current_time = 0.0;
         std::vector<double> direction(3, 0.0);
         if (parsed.count("DIRECTION")) {
@@ -119,6 +118,5 @@ int main() {
         std::cerr << "Exception inconnue" << std::endl;
     }
 
-    close(client.getSockFd());
     return 0;
 }

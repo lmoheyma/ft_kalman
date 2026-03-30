@@ -1,12 +1,14 @@
 #include "../inc/Client.hpp"
 #include "../inc/colors.hpp"
 
-Client::Client() : _index(0)
+Client::Client() : _sockfd(-1), _index(0)
 {
 }
 
 Client::~Client()
 {
+    if (this->_sockfd >= 0)
+        close(this->_sockfd);
 }
 
 void Client::setIndex(int index)
@@ -30,9 +32,9 @@ int Client::getSockFd(void) const
 
 void Client::init(void)
 {
-    if ( (this->_sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-        perror("socket creation failed"); 
-        exit(EXIT_FAILURE); 
+    if ( (this->_sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
+        perror("socket creation failed");
+        throw std::runtime_error("socket creation failed");
     }
 
     memset(&this->_servaddr, 0, sizeof(this->_servaddr)); 
