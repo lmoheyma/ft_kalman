@@ -10,11 +10,16 @@ Implémentation d'un **filtre de Kalman** en C++ pour estimer la position 3D d'u
 2. [Le problème en une image mentale](#le-problème-en-une-image-mentale)
 3. [Les capteurs disponibles](#les-capteurs-disponibles)
 4. [Comment fonctionne un filtre de Kalman](#comment-fonctionne-un-filtre-de-kalman)
-5. [Les matrices expliquées une par une](#les-matrices-expliquées-une-par-une)
-6. [Compilation et utilisation](#compilation-et-utilisation)
-7. [Protocole de communication UDP](#protocole-de-communication-udp)
-8. [Points techniques importants](#points-techniques-importants)
-9. [Ressources](#ressources)
+5. [Représentation probabiliste — les gaussiennes](#représentation-probabiliste--les-gaussiennes)
+6. [La prédiction en détail](#la-prédiction-en-détail)
+7. [La mise à jour par les mesures](#la-mise-à-jour-par-les-mesures)
+8. [Combiner deux gaussiennes — l'idée clé](#combiner-deux-gaussiennes--lidée-clé)
+9. [Les équations complètes](#les-équations-complètes)
+10. [Les matrices expliquées une par une](#les-matrices-expliquées-une-par-une)
+11. [Compilation et utilisation](#compilation-et-utilisation)
+12. [Protocole de communication UDP](#protocole-de-communication-udp)
+13. [Points techniques importants](#points-techniques-importants)
+14. [Ressources](#ressources)
 
 ---
 
@@ -32,12 +37,23 @@ L'outil mathématique utilisé est le **filtre de Kalman** : un algorithme qui p
 
 ## Le problème en une image mentale
 
-Imaginez que vous conduisez les yeux fermés.  
+Imaginez que vous conduisez les yeux fermés.
 
-- Toutes les **0.01 secondes**, un copilote vous dit « tu accélères de tant » (accéléromètre). Il est assez précis, mais il fait de petites erreurs.  
-- Toutes les **3 secondes**, il ouvre brièvement la fenêtre et vous dit « on est à peu près là » (GPS). Il est moins précis, mais il donne une position absolue.  
+- Toutes les **0.01 secondes**, un copilote vous dit « tu accélères de tant » (accéléromètre). Il est assez précis, mais il fait de petites erreurs.
+- Toutes les **3 secondes**, il ouvre brièvement la fenêtre et vous dit « on est à peu près là » (GPS). Il est moins précis, mais il donne une position absolue.
 
 Le filtre de Kalman, c'est votre cerveau : il combine les deux informations en permanence pour avoir la meilleure idée possible de « où suis-je ? ».
+
+Ou encore : un robot navigue dans les bois. Son GPS a une précision de ±10 mètres — insuffisant pour éviter les arbres. Mais il connaît ses commandes moteur et les lois de la physique. Le filtre de Kalman fusionne ces deux sources imparfaites pour produire une estimation bien meilleure que chacune séparément.
+
+| | GPS seul | Accéléromètre seul | **Filtre de Kalman** |
+|---|---|---|---|
+| Précision | ±10 m | Dérive quadratique | **Optimal** |
+| Fréquence | 0.33 Hz | 100 Hz | 100 Hz |
+| Sur le long terme | Stable | Diverge | **Stable** |
+
+![Robot navigant dans les bois](https://www.bzarg.com/wp-content/uploads/2015/08/robot_forest-300x160.png)
+![Robot face au vide](https://www.bzarg.com/wp-content/uploads/2015/08/robot_ohnoes-300x283.png)
 
 ---
 
@@ -85,7 +101,7 @@ Quand le GPS donne une mesure de position, on la compare avec notre prédiction 
 innovation = position_GPS − position_prédite
 ```
 
-Puis on calcule un **gain de Kalman** (K) qui décide : « de combien je corrige ma prédiction ? ».  
+Puis on calcule un **gain de Kalman** (K) qui décide : « de combien je corrige ma prédiction ? ».
 Ce gain dépend du rapport entre l'incertitude de notre prédiction et l'incertitude du GPS :
 
 - Si on est **très incertain** sur notre prédiction → K est grand → on fait davantage confiance au GPS
@@ -102,6 +118,154 @@ Après correction, l'incertitude **diminue** : en combinant deux sources d'infor
 ```
 
 ![Kalman Filter Information Flow](assets/kalman_flow.png)
+
+---
+
+## Représentation probabiliste — les gaussiennes
+
+Le filtre de Kalman ne travaille pas avec une valeur unique pour chaque variable, mais avec une **distribution de probabilité** — autrement dit : « quelle est la vraisemblance de chaque valeur possible ? »
+
+Pour simplifier les calculs, on suppose que ces distributions sont **gaussiennes** (courbes en cloche) :
+
+![Distribution gaussienne de base](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_0.png)
+
+Chaque gaussienne est entièrement définie par **deux paramètres** :
+- **μ (mu)** — la moyenne : notre meilleure estimation
+- **σ² (sigma carré)** — la variance : à quel point on est incertain
+
+![Gaussienne avec moyenne et variance](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_1.png)
+
+### Les corrélations entre variables
+
+Notre état contient **deux variables corrélées** : position et vitesse. Si on va vite, on sera probablement loin dans un instant. Cette corrélation se modélise avec une **matrice de covariance** :
+
+![Matrice de covariance](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_2.png)
+
+La diagonale contient les variances de chaque variable. Les termes hors-diagonale capturent les corrélations. En 2D (position + vitesse), la distribution ressemble à une « tache » dans l'espace position×vitesse :
+
+![Corrélation position-vitesse](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_3.png)
+
+L'élongation et l'orientation de cette tache révèlent la corrélation : si on est rapide, on sera probablement loin à droite de la tache — et inversement.
+
+---
+
+## La prédiction en détail
+
+À chaque pas de temps, le filtre **projette l'état vers l'avenir** selon les lois de la physique. Chaque point de la distribution actuelle se déplace selon le modèle cinématique :
+
+```
+x̂ₖ = Fₖ x̂ₖ₋₁ + Bₖ uₖ
+```
+
+Où **Fₖ** est la matrice de transition (la physique) et **Bₖ uₖ** l'effet de l'accélération mesurée.
+
+![Prédiction : déplacement de la distribution](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_7.jpg)
+
+La tache se déplace, mais elle **s'étire** aussi : l'incertitude augmente car notre modèle n'est pas parfait.
+
+La covariance se propage avec :
+```
+Pₖ = Fₖ Pₖ₋₁ Fₖᵀ
+```
+
+![Propagation de la covariance](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_8.jpg)
+
+### Le bruit de processus (Qₖ)
+
+En plus de la prédiction cinématique, des forces inconnues (vent, terrain irrégulier, vibrations) créent une incertitude supplémentaire. On la modélise par **Qₖ**, une gaussienne centrée sur l'état prédit :
+
+```
+Pₖ = Fₖ Pₖ₋₁ Fₖᵀ + Qₖ
+```
+
+![Bruit de processus : incertitude supplémentaire](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_9.jpg)
+
+Résultat de la prédiction complète : la tache s'est déplacée **et** agrandie. On sait à peu près où on est, mais avec un peu moins de certitude qu'avant.
+
+---
+
+## La mise à jour par les mesures
+
+Les capteurs ne mesurent pas directement toutes les composantes de l'état. Le GPS ne mesure que la **position**, pas la vitesse. On modélise cela avec la matrice d'observation **Hₖ** :
+
+```
+μ_attendu = Hₖ x̂ₖ
+Σ_attendu = Hₖ Pₖ Hₖᵀ
+```
+
+![Transformation vers l'espace de mesure](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_10a.jpg)
+![Covariance dans l'espace de mesure](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_10b.jpg)
+
+Le capteur lui-même a une incertitude **Rₖ** (bruit de mesure). On se retrouve donc avec **deux distributions gaussiennes** dans l'espace de mesure :
+- Celle **prédite par le modèle** (ce qu'on attend que le GPS lise)
+- Celle **lue par le capteur** (ce que le GPS lit réellement)
+
+![Distribution prédite vs mesurée](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_11.jpg)
+![Modèle capteur](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_12.jpg)
+![Matrice d'observation Hₖ](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_13.jpg)
+![Bruit de mesure Rₖ](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_14.jpg)
+
+---
+
+## Combiner deux gaussiennes — l'idée clé
+
+**Le produit de deux gaussiennes est une gaussienne.** C'est la propriété mathématique fondamentale qui rend le filtre de Kalman possible.
+
+![Deux gaussiennes qui se chevauchent](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_4.jpg)
+![Multiplication des gaussiennes](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_5.png)
+![Gaussienne résultante](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_6.png)
+
+En 1D, multiplier deux gaussiennes (μ₀, σ₀²) et (μ₁, σ₁²) donne :
+
+```
+k  = σ₀² / (σ₀² + σ₁²)       ← gain de Kalman scalaire
+
+μ' = μ₀ + k (μ₁ − μ₀)        ← moyenne résultante (entre les deux, pondérée)
+σ'² = σ₀² − k σ₀²            ← variance réduite (on en sait plus)
+```
+
+![Zone de chevauchement](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_6a.png)
+![Courbes gaussiennes superposées](https://www.bzarg.com/wp-content/uploads/2015/08/gauss_joint.png)
+
+Intuition : la moyenne résultante **μ'** se positionne entre μ₀ et μ₁, tirée vers celui dont la variance est la plus faible (le plus "sûr"). La variance résultante σ'² est **inférieure aux deux** — fusionner deux sources d'info réduit toujours l'incertitude.
+
+En formulation matricielle (gain de Kalman **K**) :
+
+```
+K = Σ₀ (Σ₀ + Σ₁)⁻¹
+```
+
+---
+
+## Les équations complètes
+
+En combinant tout ce qu'on a vu, on obtient le filtre de Kalman complet. Deux blocs d'équations, exécutés en boucle :
+
+### Prédiction
+
+| Équation | Signification |
+|---|---|
+| `x̂ₖ = Fₖ x̂ₖ₋₁ + Bₖ uₖ` | Projet l'état en avant (physique + commandes) |
+| `Pₖ = Fₖ Pₖ₋₁ Fₖᵀ + Qₖ` | Projet la covariance + ajoute le bruit de processus |
+
+### Mise à jour (quand une mesure GPS arrive)
+
+| Équation | Signification |
+|---|---|
+| `K' = Pₖ Hₖᵀ (Hₖ Pₖ Hₖᵀ + Rₖ)⁻¹` | Calcule le gain de Kalman optimal |
+| `x̂ₖ' = x̂ₖ + K' (zₖ − Hₖ x̂ₖ)` | Corrige l'état avec la mesure (innovation) |
+| `Pₖ' = Pₖ − K' Hₖ Pₖ` | Réduit l'incertitude grâce à la mesure |
+
+Où :
+- **zₖ** : la mesure brute du GPS
+- **Hₖ x̂ₖ** : ce que le GPS *devrait* lire selon notre prédiction
+- **(zₖ − Hₖ x̂ₖ)** : l'innovation — l'écart entre prédit et mesuré
+- **K'** : poids optimal prédiction ↔ mesure
+
+> Si K' ≈ 0 : on fait confiance à la prédiction (GPS peu fiable)
+> Si K' ≈ 1 : on fait confiance au GPS (prédiction très incertaine)
+
+Le filtre calcule automatiquement ce compromis à chaque instant.
 
 ---
 
